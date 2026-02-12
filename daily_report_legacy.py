@@ -24,7 +24,7 @@ import csv
 import json
 import re
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 from collections import Counter, defaultdict, deque
 from typing import Dict, Any, List, Optional, Tuple
@@ -881,7 +881,7 @@ def main():
         mfes = [x[2] for x in mae_mfe_list]
         avg_mae = sum(maes) / len(maes)
         avg_mfe = sum(mfes) / len(mfes)
-        print(f"\n--- MAE/MFE summary ---")
+        print("\n--- MAE/MFE summary ---")
         print(f"pos={len(mae_mfe_list)} avg_MAE={avg_mae:.3f}% avg_MFE={avg_mfe:.3f}%")
 
         best_mfe = sorted(mae_mfe_list, key=lambda x: x[2], reverse=True)[:SHOW_MAE_MFE_TOP_N]

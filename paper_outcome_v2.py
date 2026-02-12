@@ -34,11 +34,10 @@
 import argparse
 import csv
 import re
-import json
 from datetime import datetime, timedelta
 from pathlib import Path
 from collections import Counter
-from typing import Optional, Tuple, List, Dict, Any
+from typing import Optional, Tuple, List, Dict
 
 TIME_FMT = "%Y-%m-%d %H:%M:%S"
 

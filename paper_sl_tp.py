@@ -1,8 +1,5 @@
 # paper_sl_tp.py
-import sys
 import csv
-import math
-from datetime import datetime
 from pathlib import Path
 import argparse
 
