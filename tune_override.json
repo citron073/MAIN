@@ -1,0 +1,33 @@
+{
+  "enabled": false,
+  "apply_scope": "PAPER_ONLY",
+  "apply_once_per_day": true,
+  "max_change_per_day": 1,
+  "bounds": {
+    "win_min": [
+      30,
+      180
+    ]
+  },
+  "override": {
+    "win_min": 60
+  },
+  "rollback": {
+    "enabled": true,
+    "mode": "ABS",
+    "min_exits_required": 9,
+    "tp_rate_min": 25.0,
+    "sl_rate_max": 15.0,
+    "timeout_rate_max": 80.0,
+    "note": "min_exits_required=9: small sample days also eligible for auto-off"
+  },
+  "meta": {
+    "source": "auto_tune_v1_20260131_TOP10.csv",
+    "generated_at": "2026-02-01 08:31:31",
+    "min_paper_required": 30,
+    "paper_n_hint": 2,
+    "note": "WIN only test",
+    "disabled_reason": "rollback: sl_rate=33.3% > sl_rate_max=15.0% (exits=9)",
+    "rolled_back_at": "2026-02-02 10:12:02"
+  }
+}

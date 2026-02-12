@@ -1,0 +1,46 @@
+{
+  "day8": "20260211",
+  "file": "/Users/tani/trading_bot/trading_bot/logs/trade_log_20260211.csv",
+  "exists": true,
+  "summary": {
+    "rows": 141,
+    "pos_total": 5,
+    "open": 0,
+    "closed": 5,
+    "issues_total": 0,
+    "note_checks_enabled": true
+  },
+  "issues": [],
+  "per_pos": {
+    "20260211-102358-SELL-001": {
+      "entry": "2026-02-11 10:23:58",
+      "exit": "2026-02-11 11:14:00",
+      "holds": 9,
+      "events": 11
+    },
+    "20260211-114902-SELL-002": {
+      "entry": "2026-02-11 11:49:02",
+      "exit": "2026-02-11 12:19:03",
+      "holds": 5,
+      "events": 7
+    },
+    "20260211-125405-SELL-003": {
+      "entry": "2026-02-11 12:54:05",
+      "exit": "2026-02-11 13:14:06",
+      "holds": 3,
+      "events": 5
+    },
+    "20260211-141409-SELL-004": {
+      "entry": "2026-02-11 14:14:09",
+      "exit": "2026-02-11 14:29:10",
+      "holds": 2,
+      "events": 4
+    },
+    "20260211-143410-SELL-005": {
+      "entry": "2026-02-11 14:34:10",
+      "exit": "2026-02-11 15:09:12",
+      "holds": 6,
+      "events": 8
+    }
+  }
+}

@@ -1,0 +1,141 @@
+import sys
+import glob
+import csv
+from datetime import datetime, timedelta
+from pathlib import Path
+
+# 計測窓（分）
+WINDOW_MIN = 60
+
+def pick_today_file() -> Path:
+    # ① 引数指定があればそれを使う
+    if len(sys.argv) >= 2:
+        p = Path(sys.argv[1])
+        if p.exists():
+            return p
+        else:
+            raise FileNotFoundError(f"{p} が見つかりません")
+
+    # ② ../logs/ から最新を拾う
+    logs_dir = Path(__file__).resolve().parent.parent / "logs"
+    files = sorted(logs_dir.glob("trade_log_*.csv"))
+    if not files:
+        raise FileNotFoundError("logs/trade_log_*.csv が見つかりません")
+    return files[-1]
+
+def parse_time_jst(s: str):
+    try:
+        return datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return None
+
+def to_float(x):
+    try:
+        return float(x)
+    except Exception:
+        return None
+
+def read_rows(csv_path: Path):
+    rows = []
+    with open(csv_path, newline="") as f:
+        r = csv.DictReader(f)
+        for row in r:
+            rows.append(row)
+    return rows
+
+def read_papers(rows):
+    papers = []
+    for row in rows:
+        if (row.get("result") or "") != "PAPER":
+            continue
+        t = parse_time_jst(row.get("time", ""))
+        entry = to_float(row.get("price"))
+        if t is None or entry is None:
+            continue
+        papers.append({"time_jst": t, "entry": entry})
+    return papers
+
+def collect_ltp_window(rows, start_jst: datetime, end_jst: datetime):
+    ltps = []
+    for row in rows:
+        t = parse_time_jst(row.get("time", ""))
+        if t is None:
+            continue
+        if t < start_jst or t > end_jst:
+            continue
+        ltp = to_float(row.get("ltp"))
+        if ltp is not None:
+            ltps.append(ltp)
+    return ltps
+
+def calc_mae_mfe(entry: float, ltps: list):
+    if not ltps:
+        return None, None
+    low = min(ltps)
+    high = max(ltps)
+    mae = (low - entry) / entry * 100.0
+    mfe = (high - entry) / entry * 100.0
+    return mae, mfe
+
+def write_summary(day_str: str, results: list):
+    maes = [r["mae"] for r in results if r.get("mae") is not None]
+    mfes = [r["mfe"] for r in results if r.get("mfe") is not None]
+    avg_mae = (sum(maes) / len(maes)) if maes else None
+    avg_mfe = (sum(mfes) / len(mfes)) if mfes else None
+
+    out = Path(f"mae_mfe_summary_{day_str}.csv")
+    with open(out, "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["day", "paper_cnt", "avg_mae_pct", "avg_mfe_pct"])
+        w.writerow([
+            day_str,
+            len(results),
+            f"{avg_mae:.3f}" if avg_mae is not None else "",
+            f"{avg_mfe:.3f}" if avg_mfe is not None else ""
+        ])
+    print(f"[INFO] saved: {out.name}")
+
+def main():
+    csv_path = pick_today_file()
+    day_str = csv_path.stem.replace("trade_log_", "")
+
+    rows = read_rows(csv_path)
+    papers = read_papers(rows)
+
+    print(f"PAPER件数: {len(papers)}")
+    if not papers:
+        write_summary(day_str, [])
+        return
+
+    results = []
+    for i, p in enumerate(papers, 1):
+        start = p["time_jst"]
+        end = start + timedelta(minutes=WINDOW_MIN)
+
+        ltps = collect_ltp_window(rows, start, end)
+        mae, mfe = calc_mae_mfe(p["entry"], ltps)
+
+        print("------------------------------")
+        print(f"PAPER #{i}")
+        print(f" time(JST): {start}")
+        print(f" entry   : {p['entry']}")
+        print(f" window  : {WINDOW_MIN} min / samples(log_ltp): {len(ltps)}")
+        if mae is None or mfe is None:
+            print(" MAE/MFE : 計算不可（窓内データ不足）")
+        else:
+            print(f" MAE : {mae:.3f}%")
+            print(f" MFE : {mfe:.3f}%")
+
+        results.append({
+            "time_jst": start,
+            "entry": p["entry"],
+            "mae": mae,
+            "mfe": mfe,
+            "samples": len(ltps)
+        })
+
+    print("------------------------------")
+    write_summary(day_str, results)
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,400 @@
+# bot.py
+import requests
+import json
+import csv
+from datetime import datetime, date
+from pathlib import Path
+
+# ===== 定数 =====
+BASE_URL = "https://api.bitflyer.com"
+PRODUCT = "BTC_JPY"
+
+# 稼働時間（JST想定：Macのシステム時刻）
+START_HOUR = 10
+END_HOUR = 16  # 10〜15台まで含めたいなら16
+
+# スプレッド閾値（0.05%）
+SPREAD_LIMIT_PCT = 0.0005
+
+# 日次PAPER上限（必要に応じて調整）
+MAX_TRADES_PER_DAY = 50
+
+LOT = 0.001
+
+# A運用：条件が揃ったらPAPER（False）
+OBSERVE_ONLY = False
+
+STATE_FILE = Path("state.json")
+NEWS_BLOCK_FILE = Path("news_block.csv")
+
+# ログ（日付別）
+LOG_FILE_PREFIX = "trade_log_"
+
+LOG_FIELDS = [
+    "time",
+    "result",
+    "side",
+    "price",
+    "size",
+    "ltp",
+    "best_bid",
+    "best_ask",
+    "spread_pct",
+    "limit_pct",
+    "ma_fast",
+    "ma_slow",
+    "trend",
+    "signal",
+    "note",
+]
+
+# ===== 公開API =====
+def get_ticker(product_code=PRODUCT):
+    url = BASE_URL + "/v1/ticker"
+    r = requests.get(url, params={"product_code": product_code}, timeout=10)
+    r.raise_for_status()
+    return r.json()
+
+# ===== state管理 =====
+def load_state():
+    if STATE_FILE.exists():
+        try:
+            return json.loads(STATE_FILE.read_text())
+        except:
+            return {}
+    return {}
+
+def save_state(state):
+    STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2))
+
+def trades_today(state, today_str):
+    return int(state.get(today_str, 0))
+
+def increment_trades_today(state, today_str):
+    state[today_str] = trades_today(state, today_str) + 1
+    save_state(state)
+
+# ===== ログ =====
+def today_log_path(now):
+    day = now.strftime("%Y%m%d")
+    return Path(f"{LOG_FILE_PREFIX}{day}.csv")
+
+def write_log(csv_path, row):
+    file_exists = csv_path.exists()
+    with open(csv_path, "a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=LOG_FIELDS, extrasaction="ignore")
+        if not file_exists:
+            writer.writeheader()
+        writer.writerow(row)
+
+# ===== 時間判定 =====
+def is_trading_time(now):
+    return START_HOUR <= now.hour < END_HOUR
+
+# ===== ニュースブロック =====
+def load_news_blocks():
+    """
+    news_block.csv
+    date,time_from,time_to,label
+    ,08:45,09:10,JAPAN_DATA
+    2026-01-25,21:25,21:40,US_NEWS
+    """
+    blocks = []
+    if not NEWS_BLOCK_FILE.exists():
+        return blocks
+
+    try:
+        with open(NEWS_BLOCK_FILE, newline="") as f:
+            r = csv.DictReader(f)
+            for row in r:
+                d = (row.get("date") or "").strip()  # "" or "YYYY-MM-DD"
+                tf = (row.get("time_from") or "").strip()  # "HH:MM"
+                tt = (row.get("time_to") or "").strip()    # "HH:MM"
+                label = (row.get("label") or "").strip()
+                if not (tf and tt and label):
+                    continue
+                blocks.append({"date": d, "time_from": tf, "time_to": tt, "label": label})
+    except:
+        return []
+    return blocks
+
+def hhmm_to_minutes(s):
+    # "HH:MM" -> minutes
+    h = int(s[0:2])
+    m = int(s[3:5])
+    return h * 60 + m
+
+def is_news_block_time(now, blocks):
+    # dateが空なら毎日適用。指定があればその日だけ
+    now_date = now.strftime("%Y-%m-%d")
+    now_min = now.hour * 60 + now.minute
+
+    for b in blocks:
+        if b["date"] and b["date"] != now_date:
+            continue
+        a = hhmm_to_minutes(b["time_from"])
+        z = hhmm_to_minutes(b["time_to"])
+        if a <= now_min <= z:
+            return True, b["label"]
+    return False, ""
+
+# ===== MA（簡易：ログからサンプル蓄積する設計でも良いが、ここは雛形）=====
+# ここは既にあなたのBチーム側でfast/slow算出が動いている前提がありそうなので、
+# 互換のため「値は渡せるけど、算出ロジックは外部/既存の実装に合わせて差し替え可能」としておく。
+
+def calc_ma_context():
+    """
+    logs/ の trade_log_*.csv（最新）から ltp を読み、
+    SMA fast/slow と trend/signal を返す。
+    """
+    # ===== 設定（必要なら後で調整）=====
+    FAST_N = 5
+    SLOW_N = 20
+
+    def pick_latest_log():
+        # MAIN/ から実行される想定：../logs を優先
+        here = Path(__file__).resolve().parent
+        logs_dir = here.parent / "logs"
+        if logs_dir.exists():
+            files = sorted(logs_dir.glob("trade_log_*.csv"))
+            if files:
+                return files[-1]
+        # fallback（互換）
+        files = sorted(Path(".").glob("trade_log_*.csv"))
+        return files[-1] if files else None
+
+    def to_float(x):
+        try:
+            return float(x)
+        except Exception:
+            return None
+
+    def sma(values, n):
+        if len(values) < n:
+            return None
+        return sum(values[-n:]) / n
+
+    csv_path = pick_latest_log()
+    if not csv_path:
+        return None, None, "UNKNOWN", "NONE"
+
+    ltps = []
+    try:
+        with open(csv_path, newline="") as f:
+            r = csv.DictReader(f)
+            for row in r:
+                v = to_float(row.get("ltp"))
+                if v is not None:
+                    ltps.append(v)
+    except Exception:
+        return None, None, "UNKNOWN", "NONE"
+
+    # SMA計算に必要な最低本数（slow+1：前回比較のため）
+    if len(ltps) < (SLOW_N + 1):
+        return None, None, "UNKNOWN", "NONE"
+
+    # 直近と1本前のMAを計算
+    fast_prev = sma(ltps[:-1], FAST_N)
+    slow_prev = sma(ltps[:-1], SLOW_N)
+    fast_now  = sma(ltps, FAST_N)
+    slow_now  = sma(ltps, SLOW_N)
+
+    if fast_prev is None or slow_prev is None or fast_now is None or slow_now is None:
+        return None, None, "UNKNOWN", "NONE"
+
+    # trend
+    trend = "UP" if fast_now > slow_now else "DOWN" if fast_now < slow_now else "FLAT"
+
+    # signal（環境一致で候補を出す：母数を作る）
+    signal = "NONE"
+    if trend == "UP":
+        signal = "BUY_CANDIDATE"
+    elif trend == "DOWN":
+        signal = "SELL_CANDIDATE"
+
+    return round(fast_now, 2), round(slow_now, 2), trend, signal
+
+# ===== PAPER注文 =====
+def paper_order(product, side, size, price):
+    print("\n=== PAPER ORDER ===")
+    print(f"time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"product: {product}")
+    print(f"side: {side}")
+    print(f"size: {size}")
+    print(f"price: {price}")
+    print("※ 実注文はしていません")
+    print("===================")
+
+def main():
+    now = datetime.now()
+    csv_path = today_log_path(now)
+    news_blocks = load_news_blocks()
+
+    print("[INFO] start:", now.strftime("%Y-%m-%d %H:%M:%S"))
+
+    # ① 稼働時間
+    if not is_trading_time(now):
+        print("[SKIP] 稼働時間外")
+        return
+
+    # ② NEWSブロック
+    blocked, label = is_news_block_time(now, news_blocks)
+    if blocked:
+        # ログだけ残す
+        try:
+            ticker = get_ticker(PRODUCT)
+            best_bid = ticker.get("best_bid")
+            best_ask = ticker.get("best_ask")
+            ltp = ticker.get("ltp")
+        except:
+            best_bid = best_ask = ltp = None
+
+        write_log(csv_path, {
+            "time": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "result": "SKIP_NEWS",
+            "ltp": ltp,
+            "best_bid": best_bid,
+            "best_ask": best_ask,
+            "spread_pct": "",
+            "limit_pct": round(SPREAD_LIMIT_PCT * 100, 4),
+            "trend": "UNKNOWN",
+            "signal": "NONE",
+            "note": label,
+        })
+        print(f"[SKIP] news block: {label}")
+        return
+
+    # ③ Ticker取得
+    ticker = get_ticker(PRODUCT)
+    best_bid = ticker.get("best_bid")
+    best_ask = ticker.get("best_ask")
+    ltp = ticker.get("ltp")
+
+    if best_bid is None or best_ask is None or ltp is None:
+        print("[SKIP] ticker不完全")
+        return
+
+    spread = best_ask - best_bid
+    spread_pct = spread / ltp
+
+    # ④ MA環境（ここは既存実装があるなら置換推奨）
+    ma_fast, ma_slow, trend, signal = calc_ma_context()
+    print("\n--- SUMMARY ---")
+    print(f"ltp: {ltp}")
+    print(f"best_bid: {best_bid}")
+    print(f"best_ask: {best_ask}")
+    print(f"spread: {spread}")
+    print(f"spread(%): {spread_pct*100:.4f}%")
+    print(f"[DEBUG] SPREAD_LIMIT_PCT: {SPREAD_LIMIT_PCT*100:.4f}%")
+    print(f"[MA] fast={ma_fast} slow={ma_slow} trend={trend} signal={signal}")
+
+    # ⑤ スプレッド判定
+    if spread_pct >= SPREAD_LIMIT_PCT:
+        write_log(csv_path, {
+            "time": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "result": "SKIP_SPREAD",
+            "ltp": ltp,
+            "best_bid": best_bid,
+            "best_ask": best_ask,
+            "spread_pct": round(spread_pct * 100, 4),
+            "limit_pct": round(SPREAD_LIMIT_PCT * 100, 4),
+            "ma_fast": ma_fast,
+            "ma_slow": ma_slow,
+            "trend": trend,
+            "signal": signal,
+            "note": "",
+        })
+        print(f"[SKIP] spreadが広い: {spread_pct*100:.4f}%")
+        return
+
+    # ⑥ 「候補なし」でも必ず観測ログを残す（ここが今回の要件）
+    # signal=NONE なら OBSERVE_NO_SIGNAL を残して終了
+    if signal == "NONE":
+        write_log(csv_path, {
+            "time": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "result": "OBSERVE_NO_SIGNAL",
+            "ltp": ltp,
+            "best_bid": best_bid,
+            "best_ask": best_ask,
+            "spread_pct": round(spread_pct * 100, 4),
+            "limit_pct": round(SPREAD_LIMIT_PCT * 100, 4),
+            "ma_fast": ma_fast,
+            "ma_slow": ma_slow,
+            "trend": trend,
+            "signal": signal,
+            "note": "",
+        })
+        print("[INFO] OBSERVE_NO_SIGNAL: 候補なし（記録のみ）")
+        return
+
+    # ⑦ 1日回数制限（候補ありでも上限ならSKIP_DAILY_LIMITを記録）
+    state = load_state()
+    today_str = now.strftime("%Y-%m-%d")
+    if trades_today(state, today_str) >= MAX_TRADES_PER_DAY:
+        write_log(csv_path, {
+            "time": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "result": "SKIP_DAILY_LIMIT",
+            "ltp": ltp,
+            "best_bid": best_bid,
+            "best_ask": best_ask,
+            "spread_pct": round(spread_pct * 100, 4),
+            "limit_pct": round(SPREAD_LIMIT_PCT * 100, 4),
+            "ma_fast": ma_fast,
+            "ma_slow": ma_slow,
+            "trend": trend,
+            "signal": signal,
+            "note": "",
+        })
+        print("[SKIP] 本日の上限に達しています")
+        return
+
+    # ⑧ OBSERVE_ONLY の場合（候補ありでもPAPERを出さずOBSERVE_OK）
+    if OBSERVE_ONLY:
+        write_log(csv_path, {
+            "time": now.strftime("%Y-%m-%d %H:%M:%S"),
+            "result": "OBSERVE_OK",
+            "ltp": ltp,
+            "best_bid": best_bid,
+            "best_ask": best_ask,
+            "spread_pct": round(spread_pct * 100, 4),
+            "limit_pct": round(SPREAD_LIMIT_PCT * 100, 4),
+            "ma_fast": ma_fast,
+            "ma_slow": ma_slow,
+            "trend": trend,
+            "signal": signal,
+            "note": "",
+        })
+        print("[INFO] OBSERVE_ONLY: 記録のみ（注文なし・回数消費なし）")
+        return
+
+    # ⑨ PAPER（A運用：候補があればPAPER）
+    # sideは signal に合わせて（BUY_CANDIDATE/SELL_CANDIDATE）
+    side = "BUY" if signal == "BUY_CANDIDATE" else "SELL"
+
+    # エントリー価格（希望があれば SELL のとき少し前に出すロジック等をここで調整）
+    entry_price = best_bid if side == "BUY" else best_ask
+
+    paper_order(PRODUCT, side, LOT, entry_price)
+
+    write_log(csv_path, {
+        "time": now.strftime("%Y-%m-%d %H:%M:%S"),
+        "result": "PAPER",
+        "side": side,
+        "price": entry_price,
+        "size": LOT,
+        "ltp": ltp,
+        "best_bid": best_bid,
+        "best_ask": best_ask,
+        "spread_pct": round(spread_pct * 100, 4),
+        "limit_pct": round(SPREAD_LIMIT_PCT * 100, 4),
+        "ma_fast": ma_fast,
+        "ma_slow": ma_slow,
+        "trend": trend,
+        "signal": signal,
+        "note": "",
+    })
+
+    increment_trades_today(state, today_str)
+
+if __name__ == "__main__":
+    main()

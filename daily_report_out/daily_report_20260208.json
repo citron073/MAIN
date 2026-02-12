@@ -1,0 +1,132 @@
+{
+  "summary": {
+    "rows": 72,
+    "result_counts": {
+      "SKIP_SPREAD": 19,
+      "PAPER": 5,
+      "HOLD_OPEN_POS": 33,
+      "PAPER_EXIT_TP": 1,
+      "PAPER_EXIT_SL": 3,
+      "SKIP_NEWS": 3,
+      "OBSERVE_TIME_BLOCK": 8
+    },
+    "pos_total": 5,
+    "closed": 4,
+    "open": 1,
+    "exit_without_entry": 0,
+    "entry_without_exit": 1,
+    "events_posid_empty": 0,
+    "events_posid_bad_format": 0,
+    "note_checks_enabled": true,
+    "events_note_missing_posid": 0,
+    "events_note_posid_mismatch": 0,
+    "duplicate_entry": 0,
+    "multiple_exit": 0,
+    "missing_required_cols": [],
+    "issues_total": 0
+  },
+  "issues": [],
+  "per_pos": {
+    "20260208-100647-SELL-001": {
+      "status": "CLOSED",
+      "entry": {
+        "time": "2026-02-08 10:06:47",
+        "result": "PAPER",
+        "price": "10909999.0",
+        "side": "SELL"
+      },
+      "exit": {
+        "time": "2026-02-08 10:26:48",
+        "result": "PAPER_EXIT_TP",
+        "ltp": "10887698.0"
+      },
+      "holds_n": 3,
+      "rows_n": 5,
+      "last": {
+        "time": "2026-02-08 10:26:48",
+        "result": "PAPER_EXIT_TP",
+        "day8": "20260208"
+      }
+    },
+    "20260208-104150-SELL-002": {
+      "status": "CLOSED",
+      "entry": {
+        "time": "2026-02-08 10:41:50",
+        "result": "PAPER",
+        "price": "10916945.0",
+        "side": "SELL"
+      },
+      "exit": {
+        "time": "2026-02-08 11:21:53",
+        "result": "PAPER_EXIT_SL",
+        "ltp": "10955428.0"
+      },
+      "holds_n": 7,
+      "rows_n": 9,
+      "last": {
+        "time": "2026-02-08 11:21:53",
+        "result": "PAPER_EXIT_SL",
+        "day8": "20260208"
+      }
+    },
+    "20260208-114655-BUY-003": {
+      "status": "CLOSED",
+      "entry": {
+        "time": "2026-02-08 11:46:55",
+        "result": "PAPER",
+        "price": "10914893.0",
+        "side": "BUY"
+      },
+      "exit": {
+        "time": "2026-02-08 12:57:00",
+        "result": "PAPER_EXIT_SL",
+        "ltp": "10885000.0"
+      },
+      "holds_n": 10,
+      "rows_n": 15,
+      "last": {
+        "time": "2026-02-08 12:57:00",
+        "result": "PAPER_EXIT_SL",
+        "day8": "20260208"
+      }
+    },
+    "20260208-141206-BUY-004": {
+      "status": "CLOSED",
+      "entry": {
+        "time": "2026-02-08 14:12:06",
+        "result": "PAPER",
+        "price": "10921631.0",
+        "side": "BUY"
+      },
+      "exit": {
+        "time": "2026-02-08 14:52:09",
+        "result": "PAPER_EXIT_SL",
+        "ltp": "10897147.0"
+      },
+      "holds_n": 7,
+      "rows_n": 9,
+      "last": {
+        "time": "2026-02-08 14:52:09",
+        "result": "PAPER_EXIT_SL",
+        "day8": "20260208"
+      }
+    },
+    "20260208-152712-BUY-005": {
+      "status": "OPEN",
+      "entry": {
+        "time": "2026-02-08 15:27:12",
+        "result": "PAPER",
+        "price": "10921901.0",
+        "side": "BUY"
+      },
+      "exit": null,
+      "holds_n": 6,
+      "rows_n": 7,
+      "last": {
+        "time": "2026-02-08 15:57:14",
+        "result": "HOLD_OPEN_POS",
+        "day8": "20260208"
+      }
+    }
+  }
+}
