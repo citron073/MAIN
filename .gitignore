@@ -1,4 +1,34 @@
+# Python
 __pycache__/
-.venv/
 *.pyc
+*.pyo
+*.pyd
+
+# Virtualenv
+.venv/
+venv/
+
+# Backups
 *.bak
+*.bak.*
+*.backup
+*~ 
+
+# Logs
+*.log
+nohup.out
+run.log
+
+# Generated outputs (bot artifacts)
+audit_out/
+daily_report_out/
+paper_out/
+logs/
+
+# Local state / control snapshots (keep only if you intentionally want them versioned)
+state.json
+CONTROL.csv
+ai_model.json
+
+# Misc
+.DS_Store
