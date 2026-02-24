@@ -11,7 +11,10 @@ venv/
 # Backups
 *.bak
 *.bak.*
+*.bak_*
 *.backup
+*.broken_*
+*.error_*
 *~ 
 
 # Logs
@@ -24,6 +27,17 @@ audit_out/
 daily_report_out/
 paper_out/
 logs/
+output/
+ai_training_log.csv
+
+# Local temporary/test files
+CONTROL.csv.bak_*
+CONTROL.test.csv
+CONTROL.test.csv.bak_*
+spec_check.py.bak_*
+dashboard_spec_restore.patch
+.streamlit/
+com.ouroboros.ci.plist
 
 # Local state / control snapshots (keep only if you intentionally want them versioned)
 state.json
