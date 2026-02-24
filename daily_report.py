@@ -1,347 +1,533 @@
-#!/usr/bin/env python3
 # ============================================================
-# daily_report.py (Wrapper v2: ai_training_log optional)
-#
-# Default:
-#   python3 daily_report.py
-#     -> runs legacy daily_report_legacy.py (compat)
-#
-# AI one-button:
-#   python3 daily_report.py --ai run --days 90 --min_trades 80
-#
-# Notes:
-#   - If ai_training_log.csv is missing, this wrapper will build
-#     training rows from ../logs/trade_log_YYYYMMDD.csv (pos_id + AI score).
+# Project Ouroboros v1
+# daily_report.py
+# SPEC_OUROBOROS_DAILY_REPORT_V1 完全準拠版
 # ============================================================
 
-from __future__ import annotations
 import argparse
 import csv
 import json
 import re
-import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-import runpy
+from collections import Counter, defaultdict
+from statistics import mean
 
-MAIN = Path(__file__).resolve().parent
-LEGACY = MAIN / "daily_report_legacy.py"
-AI_MODEL = MAIN / "ai_model.json"
+SPEC_VERSION = "SPEC_OUROBOROS_DAILY_REPORT_V1"
+AI_SCORE_RE = re.compile(r"\bscore=([0-9]*\.?[0-9]+)\b")
 
-LOGS_DIR = MAIN.parent / "logs"
+# ============================================================
+# ユーティリティ
+# ============================================================
 
-AI_SCORE_RE = re.compile(r"\bAI(?:_EXT)?\s*score=([0-9]*\.[0-9]+)\b", re.I)
-
-def _now():
-    return datetime.now()
-
-def _load_json(path: Path, default):
+def parse_time(s):
     try:
-        if path.exists():
-            return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        pass
-    return default
-
-def _save_json(path: Path, obj):
-    path.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-
-def _parse_float(x):
-    try:
-        if x is None: return None
-        s = str(x).strip()
-        if s == "": return None
-        return float(s)
-    except Exception:
+        return datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
+    except:
         return None
 
-def _parse_time(s: str):
+def to_float(x):
     try:
-        return datetime.strptime(str(s).strip(), "%Y-%m-%d %H:%M:%S")
-    except Exception:
+        return float(x)
+    except:
         return None
 
-def _outcome_bucket(outcome: str) -> str:
-    o = (outcome or "").strip().upper()
-    if o == "TP" or o.endswith("_TP"): return "WIN"
-    if o == "SL" or o.endswith("_SL"): return "LOSS"
-    if o == "TIMEOUT" or o.endswith("_TIMEOUT"): return "NEUTRAL"
-    if "PARTIAL" in o: return "NEUTRAL"
-    if "EOD" in o: return "NEUTRAL"
+def pct_round(x):
+    return round(x, 1)
+
+def read_csv(path):
+    with open(path, newline="", encoding="utf-8") as f:
+        return list(csv.DictReader(f))
+
+# ============================================================
+# result分類
+# ============================================================
+
+def classify_result(r):
+    if r == "PAPER":
+        return "PAPER"
+    if r.startswith("OBSERVE"):
+        return "OBSERVE"
+    if r.startswith("SKIP"):
+        return "SKIP"
+    if r == "HOLD_OPEN_POS":
+        return "HOLD"
+    if r.startswith("PAPER_EXIT_"):
+        return "EXIT"
+    if r.startswith("ERROR"):
+        return "ERROR"
     return "UNKNOWN"
 
-def _find_ai_training_log():
-    # common candidates
-    cands = [
-        MAIN / "ai_training_log.csv",
-        LOGS_DIR / "ai_training_log.csv",
-    ]
-    for p in cands:
-        if p.exists():
-            return p
-    # any similarly named file
-    if LOGS_DIR.exists():
-        for p in sorted(LOGS_DIR.glob("ai_training_log*.csv")):
-            if p.exists():
-                return p
-    if MAIN.exists():
-        for p in sorted(MAIN.glob("ai_training_log*.csv")):
-            if p.exists():
-                return p
-    return None
+# compatibility alias (some legacy callers reference _classify_result)
+_classify_result = classify_result
 
-def _iter_csv_rows(path: Path):
-    with open(path, newline="", encoding="utf-8") as f:
-        r = csv.DictReader(f)
-        for row in r:
-            yield row
+# ============================================================
+# MAE/MFE 推定（fee未加味）
+# ============================================================
 
-def _extract_ai_score_from_note(note: str):
-    if not note:
-        return None
-    m = AI_SCORE_RE.search(note)
-    if not m:
-        return None
-    try:
-        return float(m.group(1))
-    except Exception:
+def compute_mae_mfe(rows, entry_row, exit_row):
+    side = entry_row.get("side", "")
+    entry_price = to_float(entry_row.get("price"))
+    if entry_price is None:
         return None
 
-def _collect_trade_logs(days: int):
-    """Return list of trade_log paths within lookback window (by filename date)."""
-    if not LOGS_DIR.exists():
-        return []
-    cutoff_day8 = (_now() - timedelta(days=int(days))).strftime("%Y%m%d")
-    out = []
-    for p in sorted(LOGS_DIR.glob("trade_log_*.csv")):
-        m = re.search(r"trade_log_(\d{8})\.csv$", p.name)
-        if not m:
-            continue
-        day8 = m.group(1)
-        if day8 >= cutoff_day8:
-            out.append(p)
-    return out
+    t0 = parse_time(entry_row.get("time"))
+    t1 = parse_time(exit_row.get("time"))
+    if not t0 or not t1:
+        return None
 
-def _build_training_rows_from_trade_logs(days: int):
-    """
-    Build rows:
-      time, pos_id, side, entry_price, exit_price, ai_score, outcome
-    from trade_log_YYYYMMDD.csv
-    """
-    paths = _collect_trade_logs(days)
-    if not paths:
-        return [], "[NG] no trade_log_*.csv found in ../logs"
-
-    # pos_id -> info from PAPER row
-    paper = {}
-    exits = []
-
-    for p in paths:
-        for row in _iter_csv_rows(p):
-            t = _parse_time(row.get("time",""))
-            if not t:
-                continue
-            res = (row.get("result") or "").strip()
-            pos_id = (row.get("pos_id") or "").strip()
-            note = row.get("note") or ""
-            side = (row.get("side") or "").strip().upper()
-
-            if res == "PAPER":
-                # need pos_id, ai_score in note (or empty)
-                if not pos_id:
-                    continue
-                ai_score = _extract_ai_score_from_note(note)
-                paper[pos_id] = {
-                    "time": t,
-                    "pos_id": pos_id,
-                    "side": side,
-                    "entry_price": _parse_float(row.get("price")),
-                    "ai_score": ai_score,
-                }
-
-            elif res.startswith("PAPER_EXIT_") or res in ("PAPER_EXIT_PARTIAL_TP", "PAPER_EXIT_EOD", "PAPER_EXIT_UNKNOWN"):
-                if not pos_id:
-                    continue
-                exits.append({
-                    "time": t,
-                    "pos_id": pos_id,
-                    "outcome": res.replace("PAPER_EXIT_", ""),
-                    "exit_price": _parse_float(row.get("ltp")),
-                })
-
-    # merge
-    out = []
-    missing_link = 0
-    for ex in exits:
-        pid = ex["pos_id"]
-        base = paper.get(pid)
-        if not base:
-            missing_link += 1
-            continue
-        ai_score = base.get("ai_score")
-        out.append({
-            "time": ex["time"],
-            "pos_id": pid,
-            "side": base.get("side"),
-            "entry_price": base.get("entry_price"),
-            "exit_price": ex.get("exit_price"),
-            "ai_score": ai_score,
-            "outcome": ex.get("outcome"),
-        })
-
-    msg = f"[OK] built from trade_logs: paper_pos={len(paper)} exits={len(exits)} merged={len(out)} missing_link={missing_link}"
-    return out, msg
-
-def _load_current_threshold():
-    cfg = _load_json(AI_MODEL, {})
-    th = cfg.get("confidence_threshold", {})
-    try:
-        cur = float(th.get("entry", 0.65))
-    except Exception:
-        cur = 0.65
-    return cur, cfg
-
-def _evaluate_threshold(rows, th):
-    picked = []
+    ltps = []
     for r in rows:
-        s = r.get("ai_score")
-        if s is None:
+        t = parse_time(r.get("time"))
+        if not t:
             continue
-        if s >= th:
-            picked.append(r)
+        if t0 <= t <= t1:
+            l = to_float(r.get("ltp"))
+            if l is not None:
+                ltps.append(l)
 
-    n = len(picked)
-    if n == 0:
-        return {"n": 0, "win": 0, "loss": 0, "neutral": 0, "metric": -999}
+    if not ltps:
+        return None
 
-    win = sum(1 for r in picked if r["bucket"] == "WIN")
-    loss = sum(1 for r in picked if r["bucket"] == "LOSS")
-    neutral = sum(1 for r in picked if r["bucket"] == "NEUTRAL")
+    hi = max(ltps)
+    lo = min(ltps)
 
-    metric = (win - 2.0*loss - 0.5*neutral) / max(1, n)
-    return {"n": n, "win": win, "loss": loss, "neutral": neutral, "metric": metric}
-
-def ai_train_eval_apply(days: int, min_trades: int, apply: bool, verbose: bool):
-    # 1) prefer ai_training_log.csv
-    p = _find_ai_training_log()
-    rows = []
-    src = ""
-
-    cutoff = _now() - timedelta(days=int(days))
-
-    if p:
-        src = f"ai_training_log={p}"
-        for row in _iter_csv_rows(p):
-            t = _parse_time(row.get("time",""))
-            if not t or t < cutoff:
-                continue
-            sc = _parse_float(row.get("ai_score"))
-            out = row.get("outcome") or row.get("result") or ""
-            b = _outcome_bucket(out)
-            if b == "UNKNOWN":
-                continue
-            rows.append({"time": t, "ai_score": sc, "outcome": out, "bucket": b})
+    if side == "BUY":
+        mfe = (hi - entry_price) / entry_price * 100
+        mae = (lo - entry_price) / entry_price * 100
+    elif side == "SELL":
+        mfe = (entry_price - lo) / entry_price * 100
+        mae = (entry_price - hi) / entry_price * 100
     else:
-        built, msg = _build_training_rows_from_trade_logs(days)
-        src = msg
-        for r in built:
-            t = r.get("time")
-            if not t or t < cutoff:
-                continue
-            sc = r.get("ai_score")
-            out = r.get("outcome","")
-            b = _outcome_bucket(out)
-            if b == "UNKNOWN":
-                continue
-            rows.append({"time": t, "ai_score": sc, "outcome": out, "bucket": b})
+        return None
 
-    scored = [r for r in rows if r["ai_score"] is not None]
-    print(f"[INFO] {src}")
-    print(f"[INFO] window=last {days} days -> rows={len(rows)} scored_rows={len(scored)}")
+    ret = (to_float(exit_row.get("price")) - entry_price) / entry_price * 100
+    if side == "SELL":
+        ret = -ret
 
-    need = max(20, int(min_trades))
-    if len(scored) < need:
-        print(f"[NG] not enough scored rows: {len(scored)} < min_required={need}")
-        print("     -> You need AI score in PAPER note (e.g., 'AI score=0.712'), or provide ai_training_log.csv.")
-        return 2
+    return mae, mfe, ret
 
-    cur_th, cfg = _load_current_threshold()
-    grid = [round(x, 2) for x in [0.50,0.55,0.60,0.65,0.70,0.75,0.80,0.85]]
 
-    base = _evaluate_threshold(scored, cur_th)
-    best = {"th": cur_th, **base}
+def _infer_ai_from_rows(rows_for_pid):
+    """
+    Infer AI metadata from note text.
+    Returns:
+      (score: float|None, passed: bool|None)
+    """
+    score = None
+    passed = None
+    for r in reversed(rows_for_pid):
+        note = str(r.get("note") or "")
+        if score is None:
+            m = AI_SCORE_RE.search(note)
+            if m:
+                try:
+                    score = float(m.group(1))
+                except Exception:
+                    score = None
+        low = note.lower()
+        if passed is None:
+            if ("ai_allow(" in low) or ("veto_sim=allow" in low):
+                passed = True
+            elif ("ai_block(" in low) or ("gate_sim=block" in low) or ("ai_block" in low):
+                passed = False
+        if score is not None and passed is not None:
+            break
+    return score, passed
 
-    if verbose:
-        print(f"[BASE] th={cur_th:.2f} -> n={base['n']} win={base['win']} loss={base['loss']} neutral={base['neutral']} metric={base['metric']:.4f}")
+# ============================================================
+# メイン処理
+# ============================================================
 
-    for th in grid:
-        ev = _evaluate_threshold(scored, th)
-        if ev["n"] < min_trades:
-            continue
-        if ev["metric"] > best["metric"]:
-            best = {"th": th, **ev}
-        if verbose:
-            print(f"[GRID] th={th:.2f} -> n={ev['n']} win={ev['win']} loss={ev['loss']} neutral={ev['neutral']} metric={ev['metric']:.4f}")
 
-    print("\n[RESULT]")
-    print(f"  current_th={cur_th:.2f} metric={base['metric']:.4f} n={base['n']}")
-    print(f"  best_th   ={best['th']:.2f} metric={best['metric']:.4f} n={best['n']} (min_trades={min_trades})")
+def hour_from_time(s: str):
+    """
+    return: 0-23 (int) or None
+    accept formats like:
+      - "YYYY-MM-DD HH:MM:SS"
+      - "YYYY-MM-DD HH:MM"
+      - ISO "YYYY-MM-DDTHH:MM:SS"
+    """
+    try:
+        t = (s or "").strip()
+        if not t:
+            return None
+        t = t.replace("T", " ")
+        # fast-path: split by space
+        if " " in t:
+            hhmmss = t.split(" ", 1)[1].strip()
+            if len(hhmmss) >= 2 and hhmmss[:2].isdigit():
+                h = int(hhmmss[:2])
+                return h if 0 <= h <= 23 else None
+        # fallback parse
+        from datetime import datetime
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+            try:
+                dt = datetime.strptime(t, fmt)
+                return dt.hour
+            except Exception:
+                pass
+        return None
+    except Exception:
+        return None
 
-    improve = best["metric"] - base["metric"]
-    if best["th"] == cur_th or improve < 0.02:
-        print(f"[INFO] no safe improvement to apply (improve={improve:.4f} < 0.02 or same threshold).")
-        return 0
+# compatibility alias
+_hour_from_time = hour_from_time
 
-    if not apply:
-        print("[INFO] dry-run (no apply). Use: --ai apply or --ai run")
-        return 0
-
-    if not isinstance(cfg, dict):
-        cfg = {}
-    if "confidence_threshold" not in cfg or not isinstance(cfg.get("confidence_threshold"), dict):
-        cfg["confidence_threshold"] = {}
-    cfg["confidence_threshold"]["entry"] = float(best["th"])
-
-    meta = cfg.get("model_info")
-    if not isinstance(meta, dict):
-        meta = {}
-        cfg["model_info"] = meta
-    meta["last_updated"] = _now().strftime("%Y-%m-%d")
-    meta["auto_updated_by"] = "daily_report.py wrapper ai pipeline (v2)"
-    meta["auto_update_note"] = f"entry_th {cur_th:.2f}->{best['th']:.2f} improve={improve:.4f} window_days={days} min_trades={min_trades}"
-
-    _save_json(AI_MODEL, cfg)
-    print(f"[OK] applied to ai_model.json: confidence_threshold.entry {cur_th:.2f} -> {best['th']:.2f}")
-    return 0
-
-def run_legacy(argv):
-    if not LEGACY.exists():
-        print("[NG] legacy daily_report not found:", LEGACY)
-        return 2
-    sys.argv = [str(LEGACY)] + argv
-    runpy.run_path(str(LEGACY), run_name="__main__")
-    return 0
 
 def main():
-    ap = argparse.ArgumentParser(add_help=True)
-    ap.add_argument("--legacy", action="store_true", help="run legacy daily_report (pass-through)")
-    ap.add_argument("--ai", choices=["train","eval","apply","run"], help="AI pipeline mode")
-    ap.add_argument("--days", type=int, default=90, help="lookback window (days)")
-    ap.add_argument("--min_trades", type=int, default=80, help="minimum trades required for evaluation")
-    ap.add_argument("--verbose", action="store_true", help="print grid evaluation details")
-    args, rest = ap.parse_known_args()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("day8", help="YYYYMMDD")
+    ap.add_argument("--out-dir", default="daily_report_out")
+    args = ap.parse_args()
 
-    if args.legacy or (args.ai is None):
-        return run_legacy(rest)
+    day8 = args.day8
+    logs_dir = Path("../logs")
+    log_path = logs_dir / f"trade_log_{day8}.csv"
 
-    mode = args.ai
-    if mode in ("train","eval"):
-        return ai_train_eval_apply(days=args.days, min_trades=args.min_trades, apply=False, verbose=args.verbose)
-    if mode == "apply":
-        return ai_train_eval_apply(days=args.days, min_trades=args.min_trades, apply=True, verbose=args.verbose)
-    if mode == "run":
-        return ai_train_eval_apply(days=args.days, min_trades=args.min_trades, apply=True, verbose=args.verbose)
-    return 0
+    if not log_path.exists():
+        print("log not found")
+        return
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+    rows = read_csv(log_path)
+
+    issues = []
+    required_cols = [
+        "time","result","ltp","best_bid","best_ask",
+        "spread_pct","limit_pct","trend","signal","note","pos_id"
+    ]
+
+    for c in required_cols:
+        if c not in rows[0]:
+            issues.append({
+                "severity":"ERROR",
+                "code":"MISSING_REQUIRED_COLUMN",
+                "pos_id":None,
+                "message":f"missing column {c}",
+                "evidence":{}
+            })
+
+    rows_used = []
+    rows_dropped = 0
+
+    for r in rows:
+        if not parse_time(r.get("time")):
+            rows_dropped += 1
+            issues.append({
+                "severity":"WARN",
+                "code":"BAD_TIME_PARSE",
+                "pos_id":None,
+                "message":"time parse failed",
+                "evidence":{"time":r.get("time")}
+            })
+            continue
+        rows_used.append(r)
+
+    # --------------------------------------------------------
+    # result集計
+    # --------------------------------------------------------
+    result_counter = Counter()
+    class_counter = Counter()
+
+    for r in rows_used:
+        res = r.get("result","")
+        result_counter[res]+=1
+        class_counter[classify_result(res)]+=1
+
+    paper_n = class_counter["PAPER"]
+    observe_n = class_counter["OBSERVE"]
+
+    denom = paper_n + observe_n
+    paper_rate = pct_round((paper_n/denom*100) if denom>0 else 0.0)
+
+    # --------------------------------------------------------
+    # spread統計
+    # --------------------------------------------------------
+    spreads = [to_float(r.get("spread_pct")) for r in rows_used if to_float(r.get("spread_pct")) is not None]
+    limit_vals = [to_float(r.get("limit_pct")) for r in rows_used if to_float(r.get("limit_pct")) is not None]
+    limit_pct = limit_vals[0] if limit_vals else 0
+
+    spread_over = [s for s in spreads if limit_pct and s>limit_pct]
+    spread_block = {
+        "limit_pct":limit_pct,
+        "avg_pct":mean(spreads) if spreads else 0,
+        "p50_pct":sorted(spreads)[len(spreads)//2] if spreads else 0,
+        "p90_pct":sorted(spreads)[int(len(spreads)*0.9)] if spreads else 0,
+        "p95_pct":sorted(spreads)[int(len(spreads)*0.95)] if spreads else 0,
+        "max_pct":max(spreads) if spreads else 0,
+        "over_limit_n":len(spread_over),
+        "over_limit_pct":pct_round(len(spread_over)/len(spreads)*100) if spreads else 0
+    }
+
+    # --------------------------------------------------------
+    # pos_id監査
+    # --------------------------------------------------------
+    by_pid = defaultdict(list)
+    for r in rows_used:
+        pid = r.get("pos_id") or ""
+        if not pid and r.get("result")=="PAPER":
+            issues.append({
+                "severity":"ERROR",
+                "code":"POS_ID_MISSING_ON_PAPER",
+                "pos_id":None,
+                "message":"PAPER without pos_id",
+                "evidence":r
+            })
+        if pid:
+            by_pid[pid].append(r)
+
+    exit_integrity = {
+        "paper_pos_ids":0,
+        "exit_pos_ids":0,
+        "closed_pos_ids":0,
+        "open_pos_ids":0,
+        "missing_exit_pos_ids":[],
+        "duplicate_exit_pos_ids":[],
+        "unknown_exit_result_rows":0
+    }
+
+    mae_mfe_per = {}
+    per_pos = {}
+    mae_list=[]
+    mfe_list=[]
+    ret_list=[]
+
+    for pid, rs in by_pid.items():
+        rs_sorted = sorted(rs, key=lambda x: x.get("time", ""))
+        entry = next((x for x in rs_sorted if x.get("result")=="PAPER"), None)
+        exits = [x for x in rs_sorted if x.get("result","").startswith("PAPER_EXIT_")]
+
+        if entry:
+            exit_integrity["paper_pos_ids"]+=1
+
+        if exits:
+            exit_integrity["exit_pos_ids"]+=1
+            if len(exits)>1:
+                exit_integrity["duplicate_exit_pos_ids"].append(pid)
+            # keep newest exit for per_pos / mae_mfe view
+            exit_row = exits[-1]
+        else:
+            exit_row=None
+
+        mae_val = None
+        mfe_val = None
+        ret_val = None
+
+        if entry and exit_row:
+            exit_integrity["closed_pos_ids"]+=1
+            mm = compute_mae_mfe(rows_used, entry, exit_row)
+            if mm:
+                mae_val,mfe_val,ret_val = mm
+                mae_list.append(mae_val)
+                mfe_list.append(mfe_val)
+                ret_list.append(ret_val)
+                mae_mfe_per[pid]={
+                    "side":entry.get("side"),
+                    "entry_price":entry.get("price"),
+                    "exit_price":exit_row.get("price"),
+                    "status":"CLOSED",
+                    "mae_pct":mae_val,
+                    "mfe_pct":mfe_val,
+                    "ret_pct_est":ret_val,
+                    "exit_type":exit_row.get("result").replace("PAPER_EXIT_",""),
+                    "notes":"推定（fee未加味）"
+                }
+        elif entry and not exit_row:
+            exit_integrity["open_pos_ids"]+=1
+            exit_integrity["missing_exit_pos_ids"].append(pid)
+
+        status = "UNKNOWN"
+        if entry and exit_row:
+            status = "CLOSED"
+        elif entry and not exit_row:
+            status = "OPEN"
+
+        entry_price = to_float(entry.get("price")) if entry else None
+        exit_ltp = to_float(exit_row.get("ltp")) if exit_row else None
+        ai_score, ai_pass = _infer_ai_from_rows(rs_sorted)
+
+        per_pos[pid] = {
+            "status": status,
+            "entry": {
+                "time": entry.get("time") if entry else None,
+                "side": entry.get("side") if entry else None,
+                "price": entry_price,
+            },
+            "exit": {
+                "time": exit_row.get("time") if exit_row else None,
+                "result": exit_row.get("result") if exit_row else None,
+                "ltp": exit_ltp,
+            },
+            "ai": {
+                "score": ai_score,
+                "pass": ai_pass,
+            },
+            "mae": mae_val,
+            "mfe": mfe_val,
+            "ret_pct_est": ret_val,
+            "notes": "推定（fee未加味）",
+        }
+
+    # --------------------------------------------------------
+    # JSON生成
+    # --------------------------------------------------------
+
+    # =========================
+    # by_side / by_hour blocks
+    # =========================
+    def _exit_type(res: str) -> str:
+        r = (res or "").strip()
+        if r == "PAPER_EXIT_TP": return "TP"
+        if r == "PAPER_EXIT_SL": return "SL"
+        if r == "PAPER_EXIT_TIMEOUT": return "TIMEOUT"
+        if r == "PAPER_EXIT_PARTIAL_TP": return "PARTIAL_TP"
+        if r == "PAPER_EXIT_EOD": return "EOD"
+        if r.startswith("PAPER_EXIT_"): return "UNKNOWN_EXIT"
+        return ""
+
+    def _paper_rate(paper_n: int, observe_n: int) -> float:
+        denom = paper_n + observe_n
+        if denom <= 0:
+            return 0.0
+        return round((paper_n / denom) * 100.0, 1)
+
+    def _mean(xs):
+        xs2 = [x for x in xs if x is not None]
+        if not xs2:
+            return 0.0
+        return sum(xs2) / len(xs2)
+
+    # ---------- by_side ----------
+    by_side_block = {
+        "BUY":  {"paper_n":0,"observe_n":0,"skip_n":0,"hold_n":0,"exit_n":0,"error_n":0,
+                 "paper_rate_pct":0.0,"tp_n":0,"sl_n":0,"timeout_n":0,"eod_n":0,"partial_tp_n":0},
+        "SELL": {"paper_n":0,"observe_n":0,"skip_n":0,"hold_n":0,"exit_n":0,"error_n":0,
+                 "paper_rate_pct":0.0,"tp_n":0,"sl_n":0,"timeout_n":0,"eod_n":0,"partial_tp_n":0},
+        "UNKNOWN":{"paper_n":0,"observe_n":0,"skip_n":0,"hold_n":0,"exit_n":0,"error_n":0,
+                   "paper_rate_pct":0.0,"tp_n":0,"sl_n":0,"timeout_n":0,"eod_n":0,"partial_tp_n":0}
+    }
+
+    for r in rows_used:
+        side = (r.get("side") or "").strip().upper()
+        if side not in ("BUY","SELL"):
+            side = "UNKNOWN"
+        cls = classify_result(r.get("result",""))
+        if cls == "PAPER":
+            by_side_block[side]["paper_n"] += 1
+        elif cls == "OBSERVE":
+            by_side_block[side]["observe_n"] += 1
+        elif cls == "SKIP":
+            by_side_block[side]["skip_n"] += 1
+        elif cls == "HOLD":
+            by_side_block[side]["hold_n"] += 1
+        elif cls == "EXIT":
+            by_side_block[side]["exit_n"] += 1
+            et = _exit_type(r.get("result",""))
+            if et == "TP": by_side_block[side]["tp_n"] += 1
+            elif et == "SL": by_side_block[side]["sl_n"] += 1
+            elif et == "TIMEOUT": by_side_block[side]["timeout_n"] += 1
+            elif et == "EOD": by_side_block[side]["eod_n"] += 1
+            elif et == "PARTIAL_TP": by_side_block[side]["partial_tp_n"] += 1
+        elif cls == "ERROR":
+            by_side_block[side]["error_n"] += 1
+
+    for k in ("BUY","SELL","UNKNOWN"):
+        by_side_block[k]["paper_rate_pct"] = _paper_rate(by_side_block[k]["paper_n"], by_side_block[k]["observe_n"])
+
+    # ---------- by_hour ----------
+    by_hour_block = {str(h): {"paper_n":0,"observe_n":0,"skip_n":0,"hold_n":0,"exit_n":0,"error_n":0,
+                              "paper_rate_pct":0.0,"spread_avg_pct":0.0,
+                              "tp_n":0,"sl_n":0,"timeout_n":0,"eod_n":0,"partial_tp_n":0}
+                     for h in range(24)}
+    spread_by_hour = {str(h): [] for h in range(24)}
+
+    for r in rows_used:
+        h = hour_from_time(r.get("time",""))
+        if h is None or not (0 <= h <= 23):
+            continue
+        hk = str(h)
+        cls = classify_result(r.get("result",""))
+        if cls == "PAPER":
+            by_hour_block[hk]["paper_n"] += 1
+        elif cls == "OBSERVE":
+            by_hour_block[hk]["observe_n"] += 1
+        elif cls == "SKIP":
+            by_hour_block[hk]["skip_n"] += 1
+        elif cls == "HOLD":
+            by_hour_block[hk]["hold_n"] += 1
+        elif cls == "EXIT":
+            by_hour_block[hk]["exit_n"] += 1
+            et = _exit_type(r.get("result",""))
+            if et == "TP": by_hour_block[hk]["tp_n"] += 1
+            elif et == "SL": by_hour_block[hk]["sl_n"] += 1
+            elif et == "TIMEOUT": by_hour_block[hk]["timeout_n"] += 1
+            elif et == "EOD": by_hour_block[hk]["eod_n"] += 1
+            elif et == "PARTIAL_TP": by_hour_block[hk]["partial_tp_n"] += 1
+        elif cls == "ERROR":
+            by_hour_block[hk]["error_n"] += 1
+
+        sp = to_float(r.get("spread_pct"))
+        if sp is not None:
+            spread_by_hour[hk].append(sp)
+
+    for hk in by_hour_block.keys():
+        by_hour_block[hk]["paper_rate_pct"] = _paper_rate(by_hour_block[hk]["paper_n"], by_hour_block[hk]["observe_n"])
+        by_hour_block[hk]["spread_avg_pct"] = round(_mean(spread_by_hour[hk]), 6)
+
+
+    payload={
+        "meta":{
+            "spec":SPEC_VERSION,
+            "generated_at_jst":datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "target_day8":day8,
+            "log_path":str(log_path),
+            "rows_total":len(rows),
+            "rows_used":len(rows_used),
+            "rows_dropped":rows_dropped,
+            "notes":""
+        },
+        "daily":{
+            "paper_n":paper_n,
+            "observe_n":observe_n,
+            "skip_n":class_counter["SKIP"],
+            "hold_n":class_counter["HOLD"],
+            "exit_n":class_counter["EXIT"],
+            "error_n":class_counter["ERROR"],
+            "paper_rate_pct":paper_rate,
+            "exit_tp_n":result_counter["PAPER_EXIT_TP"],
+            "exit_sl_n":result_counter["PAPER_EXIT_SL"],
+            "exit_timeout_n":result_counter["PAPER_EXIT_TIMEOUT"],
+            "exit_partial_tp_n":result_counter["PAPER_EXIT_PARTIAL_TP"],
+            "exit_eod_n":result_counter["PAPER_EXIT_EOD"],
+            "spread_over_limit_n":spread_block["over_limit_n"],
+            "spread_over_limit_pct":spread_block["over_limit_pct"]
+        },
+        "by_side": by_side_block,
+        "by_result":dict(result_counter),
+        "by_hour": by_hour_block,
+        "trends":Counter(r.get("trend","UNKNOWN") for r in rows_used),
+        "signals":Counter(r.get("signal","NONE") for r in rows_used),
+        "spread":spread_block,
+        "per_pos":per_pos,
+        "exit_integrity":exit_integrity,
+        "mae_mfe":{
+            "per_pos":mae_mfe_per,
+            "summary":{
+                "closed_n":len(mae_list),
+                "mae_avg_pct":mean(mae_list) if mae_list else 0,
+                "mfe_avg_pct":mean(mfe_list) if mfe_list else 0,
+                "ret_avg_pct_est":mean(ret_list) if ret_list else 0
+            }
+        },
+        "issues":issues
+    }
+
+    out_dir=Path(args.out_dir)
+    out_dir.mkdir(parents=True,exist_ok=True)
+    out_path=out_dir/f"daily_report_{day8}.json"
+    out_path.write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding="utf-8")
+
+    print(f"[WRITE] {out_path}")
+
+if __name__=="__main__":
+    main()

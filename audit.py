@@ -1,267 +1,372 @@
-# MAIN/audit.py (v3-C) 監査スクリプト【完全網羅・確定版】
-# ------------------------------------------------------------
-# - trade_log_YYYYMMDD.csv を監査して pos_id / ENTRY / EXIT の整合をチェック
-# - note 内の pos_id=... と CSV列 pos_id の整合チェック（note列がある場合のみ）
-# - pos_id strict 形式チェック（YYYYMMDD-HHMMSS-TAG-999）
-# - state.json の _open_pos とログ監査結果の整合チェック
+# ============================================================
+# Project Ouroboros v1 — audit.py (Integrity Audit + Safe Repair)
+# ============================================================
+# 目的：
+# - SPEC固定のログ整合を自動監査
+# - 可能な範囲で「安全な自己修復」を実施（stateの修復を中心、ログは原則改変しない）
 #
-# 使い方:
-#   python3 audit.py
-#   python3 audit.py 20260207
-#   python3 audit.py --last 7
-#   python3 audit.py --from 20260201 --to 20260207
-#   python3 audit.py --no-save
-#   python3 audit.py --out-dir ./audit_out
+# 監査対象：
+# - logs/trade_log_YYYYMMDD.csv（必須カラム / result / pos_id / PAPER-EXIT整合）
+# - MAIN/state.json（open_pos整合）
 #
-# 出力:
-#   - 標準出力に summary / issues を表示
-#   - 監査結果JSONを ./audit_out/audit_YYYYMMDD.json に保存（デフォルト）
+# 出力：
+# - audit_out/audit_YYYYMMDD.json（1日）
+# - audit_out/audit_YYYYMMDD_YYYYMMDD.json（範囲）
+# ============================================================
 
-from __future__ import annotations
-
+import argparse
 import csv
 import json
 import re
-import sys
+from datetime import datetime, timedelta
 from pathlib import Path
-from dataclasses import dataclass
-from datetime import datetime
-from collections import defaultdict
-from typing import Optional, Dict, Any, List
+from typing import Dict, Any, List, Tuple, Optional
 
-# =========================
-# Paths
-# =========================
 MAIN_DIR = Path(__file__).resolve().parent
-STATE_JSON = MAIN_DIR / "state.json"
-DEFAULT_OUT_DIR = MAIN_DIR / "audit_out"
+LOG_DIR = MAIN_DIR.parent / "logs"
+AUDIT_OUT_DIR_DEFAULT = MAIN_DIR / "audit_out"
+STATE_FILE = MAIN_DIR / "state.json"
 
-
-def find_logs_dir(main_dir: Path) -> Optional[Path]:
-    cands = [
-        main_dir.parent / "logs",
-        main_dir / "logs",
-        Path("../logs").resolve(),
-        Path("./logs").resolve(),
-    ]
-    for p in cands:
-        try:
-            if p.exists() and any(p.glob("trade_log_*.csv")):
-                return p
-        except Exception:
-            pass
-    return None
-
-
-LOGS_DIR = find_logs_dir(MAIN_DIR)
-
-# =========================
-# Definitions
-# =========================
-EXIT_RESULTS = {
+# SPEC fixed
+LOG_FIELDS = [
+    "time","result","side","price","size",
+    "ltp","best_bid","best_ask",
+    "spread_pct","limit_pct",
+    "ma_fast","ma_slow","trend","signal",
+    "note","pos_id",
+]
+RESULT_ALLOWED = {
+    "PAPER",
+    "OBSERVE_OK",
+    "OBSERVE_NO_SIGNAL",
+    "SKIP_SPREAD",
+    "SKIP_NEWS",
+    "SKIP_DAILY_LIMIT",
+    # New results emitted by MAIN/bot.py - accept them in audit
+    "SKIP_OUT_OF_TIME",
+    "SKIP_TICKER_INCOMPLETE",
+    "OBSERVE_AI_BLOCK",
+    # Additional historic/observed result names
+    "SKIP_ALREADY_RUNNING",
+    "SKIP_COOLDOWN",
+    "OBSERVE_TIME_BLOCK",
+    "OBSERVE_SELL_FAST_MA_NEAR",
+    "AI_BLOCKED",
+    "SKIP_ORPHAN_DETECTED",
+    "MANUAL_CLEAR_OPEN_POS",
+    "PAPER_ENTRY",
     "PAPER_EXIT_TP",
     "PAPER_EXIT_SL",
     "PAPER_EXIT_TIMEOUT",
     "PAPER_EXIT_PARTIAL_TP",
+    "PAPER_EXIT_EOD",
+    "HOLD_OPEN_POS"
 }
+POS_ID_RE = re.compile(r"^[0-9]{8}-[0-9]{6}-(BUY|SELL)-\d{3}$")
 
-EVENT_RESULTS = {"PAPER", "HOLD_OPEN_POS"} | EXIT_RESULTS
-
-POS_ID_STRICT_RE = re.compile(r"^[0-9]{8}-[0-9]{6}-[A-Z]+-\d{3}$")
-NOTE_POS_ID_RE = re.compile(r"\bpos_id=([0-9]{8}-[0-9]{6}-[A-Z]+-\d{3})\b")
-
-# =========================
-# Helpers
-# =========================
-def s(x: Any) -> str:
-    return str(x or "").strip()
-
-
-def parse_time_safe(t: str) -> datetime:
+# -------------------------
+# helpers
+# -------------------------
+def load_state() -> dict:
+    if not STATE_FILE.exists():
+        return {}
     try:
-        return datetime.strptime(t, "%Y-%m-%d %H:%M:%S")
+        d = json.loads(STATE_FILE.read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
     except Exception:
-        return datetime.min
+        return {}
 
+def save_state(state: dict) -> None:
+    STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
-def read_csv_dict(path: Path) -> List[dict]:
-    if not path.exists():
+def load_rows(day8: str) -> List[dict]:
+    p = LOG_DIR / f"trade_log_{day8}.csv"
+    if not p.exists():
         return []
-    with open(path, newline="", encoding="utf-8") as f:
-        return list(csv.DictReader(f))
+    with open(p, newline="", encoding="utf-8") as f:
+        r = csv.DictReader(f)
+        return [row for row in r]
 
+def day8_to_date(day8: str) -> datetime:
+    return datetime.strptime(day8, "%Y%m%d")
 
-def load_state() -> Dict[str, Any]:
-    if not STATE_JSON.exists():
-        return {}
-    try:
-        return json.loads(STATE_JSON.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+def iter_days(start8: str, end8: str) -> List[str]:
+    a = day8_to_date(start8)
+    z = day8_to_date(end8)
+    days = []
+    cur = a
+    while cur <= z:
+        days.append(cur.strftime("%Y%m%d"))
+        cur += timedelta(days=1)
+    return days
 
+def issue(code: str, severity: str, message: str, context: Optional[dict] = None) -> dict:
+    return {
+        "code": code,
+        "severity": severity,  # INFO/WARN/ERROR/FATAL
+        "message": message,
+        "context": context or {},
+    }
 
-def log_path(day8: str) -> Path:
-    if LOGS_DIR is None:
-        return MAIN_DIR.parent / "logs" / f"trade_log_{day8}.csv"
-    return LOGS_DIR / f"trade_log_{day8}.csv"
+# -------------------------
+# audit checks
+# -------------------------
+def audit_rows(rows: List[dict]) -> Tuple[dict, List[dict]]:
+    issues: List[dict] = []
 
+    # header / columns
+    if rows:
+        # DictReader doesn't keep original header reliably; validate by checking keys presence across first row
+        missing = [c for c in LOG_FIELDS if c not in rows[0]]
+        if missing:
+            issues.append(issue(
+                "LOG_MISSING_COLUMNS", "FATAL",
+                f"Missing required columns: {missing}",
+                {"missing": missing},
+            ))
 
-def existing_days(days: List[str]) -> List[str]:
-    return [d for d in days if log_path(d).exists()]
+    # per-row checks
+    pos_events: Dict[str, dict] = {}
+    paper_pos: set = set()
+    exit_pos: set = set()
 
+    res_count: Dict[str, int] = {}
+    for i, r in enumerate(rows, start=1):
+        res = (r.get("result") or "").strip()
+        res_count[res] = res_count.get(res, 0) + 1
 
-# =========================
-# Data model
-# =========================
-@dataclass
-class PosUnit:
-    entry: Optional[dict] = None
-    exit: Optional[dict] = None
-    holds: List[dict] = None
-    all: List[dict] = None
+        if res and res not in RESULT_ALLOWED:
+            issues.append(issue(
+                "RESULT_UNKNOWN", "ERROR",
+                f"Unknown result '{res}' at row {i}",
+                {"row": i, "result": res},
+            ))
 
-    def __post_init__(self):
-        self.holds = self.holds or []
-        self.all = self.all or []
+        pos_id = (r.get("pos_id") or "").strip()
+        if res == "PAPER":
+            if not pos_id:
+                issues.append(issue(
+                    "PAPER_MISSING_POS_ID", "FATAL",
+                    f"PAPER missing pos_id at row {i}",
+                    {"row": i},
+                ))
+            elif not POS_ID_RE.match(pos_id):
+                issues.append(issue(
+                    "POS_ID_FORMAT_INVALID", "ERROR",
+                    f"Invalid pos_id format at row {i}: {pos_id}",
+                    {"row": i, "pos_id": pos_id},
+                ))
+            if pos_id:
+                paper_pos.add(pos_id)
 
+        if res.startswith("PAPER_EXIT_"):
+            if not pos_id:
+                issues.append(issue(
+                    "EXIT_MISSING_POS_ID", "ERROR",
+                    f"EXIT missing pos_id at row {i} result={res}",
+                    {"row": i, "result": res},
+                ))
+            elif not POS_ID_RE.match(pos_id):
+                issues.append(issue(
+                    "POS_ID_FORMAT_INVALID", "ERROR",
+                    f"Invalid pos_id format at row {i}: {pos_id}",
+                    {"row": i, "pos_id": pos_id},
+                ))
+            if pos_id:
+                exit_pos.add(pos_id)
 
-# =========================
-# Core audit
-# =========================
-def audit_one_day(day8: str) -> Dict[str, Any]:
-    path = log_path(day8)
-    rows = read_csv_dict(path)
-
-    if not rows:
-        return {
-            "day8": day8,
-            "file": str(path),
-            "exists": path.exists(),
-            "summary": {"rows": 0, "pos_total": 0, "issues_total": 1},
-            "issues": [f"INFO: no trade log for {day8}"],
-            "per_pos": {},
-        }
-
-    cols = set(rows[0].keys())
-    has_note = "note" in cols
-
-    issues: List[str] = []
-    per_pos: Dict[str, PosUnit] = defaultdict(PosUnit)
-
-    rows_sorted = sorted(rows, key=lambda r: parse_time_safe(s(r.get("time"))))
-
-    for r in rows_sorted:
-        res = s(r.get("result"))
-        pid = s(r.get("pos_id"))
-        note = s(r.get("note")) if has_note else ""
-        t = s(r.get("time"))
-
-        if res in EVENT_RESULTS:
-            if not pid:
-                issues.append(f"ERROR: pos_id empty result={res} time={t}")
-                continue
-            if not POS_ID_STRICT_RE.fullmatch(pid):
-                issues.append(f"ERROR: pos_id not strict pos_id={pid} time={t}")
-            if has_note:
-                m = NOTE_POS_ID_RE.search(note)
-                if not m:
-                    issues.append(f"ERROR: note missing pos_id=... pos_id={pid} time={t}")
-                elif m.group(1) != pid:
-                    issues.append(f"ERROR: note pos_id mismatch col={pid} note={m.group(1)} time={t}")
-
-        if pid:
-            u = per_pos[pid]
-            u.all.append(r)
-
+        if pos_id:
+            s = pos_events.setdefault(pos_id, {"events": 0, "paper": 0, "exits": 0, "last_result": ""})
+            s["events"] += 1
+            s["last_result"] = res
             if res == "PAPER":
-                if u.entry:
-                    issues.append(f"ERROR: duplicate ENTRY pos_id={pid}")
-                u.entry = u.entry or r
-            elif res in EXIT_RESULTS:
-                if u.exit:
-                    issues.append(f"ERROR: multiple EXIT pos_id={pid}")
-                u.exit = u.exit or r
-            elif res == "HOLD_OPEN_POS":
-                u.holds.append(r)
+                s["paper"] += 1
+            if res.startswith("PAPER_EXIT_"):
+                s["exits"] += 1
 
-    open_n = closed_n = 0
-    for pid, u in per_pos.items():
-        if u.entry and u.exit:
-            closed_n += 1
-        elif u.entry and not u.exit:
-            open_n += 1
-        elif not u.entry and u.exit:
-            issues.append(f"ERROR: EXIT without ENTRY pos_id={pid}")
+    # cross checks pos_id
+    for pid, s in pos_events.items():
+        if s["paper"] > 1:
+            issues.append(issue(
+                "POS_ID_DUP_PAPER", "ERROR",
+                f"pos_id has multiple PAPER events: {pid}",
+                {"pos_id": pid, "paper_n": s["paper"]},
+            ))
+        if s["exits"] > 1:
+            issues.append(issue(
+                "POS_ID_MULTI_EXIT", "ERROR",
+                f"pos_id has multiple EXIT events: {pid}",
+                {"pos_id": pid, "exit_n": s["exits"]},
+            ))
+        if s["exits"] >= 1 and s["paper"] == 0:
+            issues.append(issue(
+                "EXIT_WITHOUT_PAPER", "ERROR",
+                f"EXIT exists but PAPER not found for pos_id: {pid}",
+                {"pos_id": pid, "last_result": s["last_result"]},
+            ))
+
+    # summary
+    summary = {
+        "rows": len(rows),
+        "result_counts": res_count,
+        "pos_id_count": len(pos_events),
+        "paper_pos_n": len(paper_pos),
+        "exit_pos_n": len(exit_pos),
+        "paper_without_exit_n": len(paper_pos - exit_pos),
+        "exit_without_paper_n": len(exit_pos - paper_pos),
+    }
+    return summary, issues
+
+def audit_state_against_logs(state: dict, paper_pos: set, exit_pos: set) -> List[dict]:
+    issues: List[dict] = []
+    op = state.get("_open_pos")
+    if not op:
+        return issues
+
+    if not isinstance(op, dict):
+        issues.append(issue(
+            "STATE_OPEN_POS_INVALID", "ERROR",
+            "_open_pos exists but is not a dict",
+            {"type": str(type(op))},
+        ))
+        return issues
+
+    pid = str(op.get("pos_id") or "").strip()
+    if not pid:
+        issues.append(issue(
+            "STATE_OPEN_POS_MISSING_POS_ID", "ERROR",
+            "_open_pos missing pos_id",
+            {"open_pos_keys": list(op.keys())},
+        ))
+        return issues
+
+    if not POS_ID_RE.match(pid):
+        issues.append(issue(
+            "STATE_OPEN_POS_POS_ID_INVALID", "ERROR",
+            f"_open_pos pos_id invalid format: {pid}",
+            {"pos_id": pid},
+        ))
+
+    if pid in exit_pos:
+        issues.append(issue(
+            "STATE_OPEN_POS_ALREADY_EXITED", "FATAL",
+            "state shows open_pos but logs already contain an EXIT for this pos_id",
+            {"pos_id": pid},
+        ))
+
+    if pid not in paper_pos:
+        issues.append(issue(
+            "STATE_OPEN_POS_NO_PAPER_LOG", "WARN",
+            "state has open_pos but PAPER log not found (may be log loss or manual edit)",
+            {"pos_id": pid},
+        ))
+
+    return issues
+
+# -------------------------
+# safe repair
+# -------------------------
+def repair_state_if_needed(state: dict, issues: List[dict]) -> Tuple[dict, List[dict]]:
+    """
+    安全な自己修復：
+    - FATALの state open_pos 不整合は open_pos を退避して消す
+    - ログは変更しない（監査の信頼性を壊すため）
+    """
+    repaired = []
+    fatal_codes = {i["code"] for i in issues if i["severity"] == "FATAL"}
+    if not fatal_codes:
+        return state, repaired
+
+    op = state.get("_open_pos")
+    if op:
+        state.setdefault("_repair_history", [])
+        state["_repair_history"].append({
+            "at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "action": "quarantine_open_pos",
+            "open_pos": op,
+            "fatal_codes": sorted(list(fatal_codes)),
+        })
+        state.pop("_open_pos", None)
+        repaired.append(issue(
+            "REPAIR_QUARANTINE_OPEN_POS", "WARN",
+            "Quarantined _open_pos due to FATAL inconsistencies (logs not modified).",
+            {"fatal_codes": sorted(list(fatal_codes))},
+        ))
+    return state, repaired
+
+# -------------------------
+# main
+# -------------------------
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--day", help="YYYYMMDD", default=None)
+    ap.add_argument("--start", help="YYYYMMDD", default=None)
+    ap.add_argument("--end", help="YYYYMMDD", default=None)
+    ap.add_argument("--out-dir", default=str(AUDIT_OUT_DIR_DEFAULT))
+    ap.add_argument("--fix-state", action="store_true", help="apply safe repair to state.json (no log edits)")
+    args = ap.parse_args()
+
+    out_dir = Path(args.out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.day:
+        days = [args.day]
+        out_name = f"audit_{args.day}.json"
+    else:
+        if not (args.start and args.end):
+            raise SystemExit("Specify --day or (--start and --end).")
+        days = iter_days(args.start, args.end)
+        out_name = f"audit_{args.start}_{args.end}.json"
+
+    all_rows = []
+    for d in days:
+        all_rows.extend(load_rows(d))
+
+    summary, issues = audit_rows(all_rows)
+
+    # derive paper_pos/exit_pos sets for state audit
+    paper_pos = set()
+    exit_pos = set()
+    for r in all_rows:
+        res = (r.get("result") or "").strip()
+        pid = (r.get("pos_id") or "").strip()
+        if res == "PAPER" and pid:
+            paper_pos.add(pid)
+        if res.startswith("PAPER_EXIT_") and pid:
+            exit_pos.add(pid)
 
     state = load_state()
-    sop = state.get("_open_pos") if isinstance(state.get("_open_pos"), dict) else {}
-    sop_id = s(sop.get("pos_id"))
-    if sop_id:
-        u = per_pos.get(sop_id)
-        if not u:
-            issues.append(f"WARN: state._open_pos {sop_id} not found in log {day8}")
-        elif u.exit:
-            issues.append(f"WARN: state._open_pos {sop_id} is CLOSED in log")
+    state_issues = audit_state_against_logs(state, paper_pos, exit_pos)
+    issues.extend(state_issues)
 
-    summary = {
-        "rows": len(rows_sorted),
-        "pos_total": len(per_pos),
-        "open": open_n,
-        "closed": closed_n,
-        "issues_total": len(issues),
-        "note_checks_enabled": has_note,
-    }
+    repaired = []
+    if args.fix_state:
+        state2, repaired = repair_state_if_needed(state, issues)
+        if repaired:
+            save_state(state2)
+            issues.extend(repaired)
 
-    per_pos_out = {
-        pid: {
-            "entry": s(u.entry.get("time")) if u.entry else None,
-            "exit": s(u.exit.get("time")) if u.exit else None,
-            "holds": len(u.holds),
-            "events": len(u.all),
-        }
-        for pid, u in per_pos.items()
-    }
-
-    return {
-        "day8": day8,
-        "file": str(path),
-        "exists": True,
+    report = {
+        "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "days": days,
         "summary": summary,
         "issues": issues,
-        "per_pos": per_pos_out,
+        "fix_state_applied": bool(args.fix_state),
     }
 
+    out_path = out_dir / out_name
+    out_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
-# =========================
-# CLI
-# =========================
-def main() -> None:
-    if LOGS_DIR is None:
-        print("[ERROR] logs dir not found")
-        sys.exit(2)
-
-    day8 = datetime.now().strftime("%Y%m%d")
-    if len(sys.argv) >= 2 and re.fullmatch(r"\d{8}", sys.argv[1]):
-        day8 = sys.argv[1]
-
-    rep = audit_one_day(day8)
-
-    print(f"\n=== AUDIT {day8} ===")
-    print(json.dumps(rep["summary"], ensure_ascii=False, indent=2))
-
-    if rep["issues"]:
-        print("\n--- ISSUES ---")
-        for x in rep["issues"][:200]:
-            print(x)
-    else:
-        print("\nISSUES: none")
-
-    out_dir = DEFAULT_OUT_DIR
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out = out_dir / f"audit_{day8}.json"
-    out.write_text(json.dumps(rep, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"\n[OK] saved: {out}")
-
+    # stdout brief
+    print("[audit]")
+    print(" days:", ",".join(days))
+    print(" rows:", summary["rows"])
+    print(" issues:", len(issues))
+    sev = {"FATAL":0,"ERROR":0,"WARN":0,"INFO":0}
+    for it in issues:
+        sev[it["severity"]] = sev.get(it["severity"],0)+1
+    print(" severity:", sev)
+    print(" out:", str(out_path))
 
 if __name__ == "__main__":
     main()

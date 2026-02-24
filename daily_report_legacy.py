@@ -785,6 +785,29 @@ def main():
 
         entry = next((r for r in rs_sorted if (r.get("result") or "") == RESULT_PAPER), None)
         exit_ = next((r for r in rs_sorted if (r.get("result") or "").startswith(RESULT_PAPER_EXIT_PREFIX)), None)
+        # [PATCH] synth ENTRY from EXIT note when ENTRY is missing (cross-day safe)
+        if (exit_ is not None) and (entry is None):
+            note_ex = safe_str(exit_.get("note"), "")
+            m = re.search(r"\bentry=(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\b", note_ex)
+            if m:
+                t_entry_s = m.group(1)
+                try:
+                    _ = datetime.strptime(t_entry_s, "%Y-%m-%d %H:%M:%S")
+                except Exception:
+                    t_entry_s = None
+
+                if t_entry_s:
+                    entry = {
+                        "time": t_entry_s,
+                        "result": "PAPER",
+                        "side": safe_str(exit_.get("side"), ""),
+                        "price": None,  # price unknown in synth entry
+                        "size": exit_.get("size"),
+                        "pos_id": safe_str(exit_.get("pos_id"), ""),
+                        "note": f"SYNTH_ENTRY_FROM_EXIT_NOTE entry={t_entry_s}",
+                        "_synthed": True,
+                    }
+
 
         if entry is None or exit_ is None:
             warn_flags.append((pid, "MISSING_ENTRY" if entry is None else "MISSING_EXIT"))
@@ -847,7 +870,7 @@ def main():
 
     # ===== issues / warnings =====
     if missing_pid_rows > 0:
-        issues.append(f"WARN pid_missing_rows={missing_pid_rows} (pos_id column and note pid not found)")
+        issues.append(f"INFO pid_missing_rows={missing_pid_rows} (pos_id missing is expected for SKIP/OBSERVE rows)")
 
     if warn_flags:
         cnt = Counter(flag for _, flag in warn_flags)
