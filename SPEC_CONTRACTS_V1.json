@@ -1,0 +1,147 @@
+{
+  "version": "v1",
+  "control_csv": {
+    "required_columns": [
+      "key",
+      "value"
+    ]
+  },
+  "trade_log_csv": {
+    "required_columns": [
+      "time",
+      "result",
+      "ltp",
+      "best_bid",
+      "best_ask",
+      "spread_pct",
+      "limit_pct",
+      "trend",
+      "signal",
+      "note",
+      "pos_id"
+    ]
+  },
+  "daily_report_json": {
+    "required_top_keys": [
+      "meta",
+      "daily",
+      "by_result",
+      "by_side",
+      "by_hour",
+      "trends",
+      "signals",
+      "spread",
+      "exit_integrity",
+      "mae_mfe"
+    ],
+    "meta_required_keys": [
+      "spec",
+      "generated_at_jst",
+      "target_day8",
+      "log_path",
+      "rows_total",
+      "rows_used",
+      "rows_dropped",
+      "notes"
+    ],
+    "daily_required_keys": [
+      "paper_n",
+      "observe_n",
+      "skip_n",
+      "hold_n",
+      "exit_n",
+      "error_n",
+      "paper_rate_pct",
+      "exit_tp_n",
+      "exit_sl_n",
+      "exit_timeout_n",
+      "exit_partial_tp_n",
+      "exit_eod_n",
+      "spread_over_limit_n",
+      "spread_over_limit_pct"
+    ],
+    "by_side_required_sides": [
+      "BUY",
+      "SELL",
+      "UNKNOWN"
+    ],
+    "by_side_required_keys": [
+      "paper_n",
+      "exit_n",
+      "paper_rate_pct",
+      "tp_n",
+      "sl_n",
+      "timeout_n",
+      "eod_n",
+      "partial_tp_n"
+    ],
+    "by_hour_required_hour_keys": [
+      "paper_n",
+      "observe_n",
+      "paper_rate_pct",
+      "spread_avg_pct",
+      "exit_n",
+      "tp_n",
+      "sl_n",
+      "timeout_n",
+      "eod_n",
+      "partial_tp_n"
+    ],
+    "by_hour_hours": [
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12",
+      "13",
+      "14",
+      "15",
+      "16",
+      "17",
+      "18",
+      "19",
+      "20",
+      "21",
+      "22",
+      "23"
+    ]
+  },
+  "audit_json": {
+    "required_top_keys": [
+      "generated_at",
+      "days",
+      "summary",
+      "issues",
+      "fix_state_applied"
+    ],
+    "summary_required_keys": [
+      "rows",
+      "result_counts",
+      "pos_id_count",
+      "paper_pos_n",
+      "exit_pos_n",
+      "paper_without_exit_n",
+      "exit_without_paper_n"
+    ],
+    "issue_required_keys": [
+      "code",
+      "severity",
+      "message",
+      "context"
+    ],
+    "severity_allowed": [
+      "INFO",
+      "WARN",
+      "ERROR",
+      "FATAL"
+    ]
+  }
+}
