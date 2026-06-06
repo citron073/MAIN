@@ -1,7 +1,7 @@
 # Ouroboros Trading Spec Table
 
 最終更新: 2026-06-06 JST（trade_logログ書き込みfsync堅牢化＝NUL破損の根本対策）  
-実装バージョン: `bot.py=v2026.06.06.1`（fsync堅牢化: 全CSV append書き込み5箇所にflush+os.fsyncを追加。VM再起動/クラッシュ時のNULバイト破損を根絶／TP Trail継続）/ `ibkr_bot.py=v2026.05.16.1`/ `OUROBOROS_BOT_VERSION=2026.06.06.1` / インフラ安全性 2026-04-22 / 監視・学習インフラ 2026-04-25  
+実装バージョン: `bot.py=v2026.06.06.1`（fsync堅牢化: 全CSV append書き込み5箇所にflush+os.fsyncを追加。VM再起動/クラッシュ時のNULバイト破損を根絶／TP Trail継続）/ `ibkr_bot.py=v2026.06.04.1`（投資円卓会議統合・コツコツドカン対策・監視銘柄40件／詳細は IBKR_AGENT_SPEC.md）/ `OUROBOROS_BOT_VERSION=2026.06.06.1` / インフラ安全性 2026-04-22 / 監視・学習インフラ 2026-04-25  
 ツールバージョン（session31追加）: `state_schema_check.py`（新規: drift/weeklyスキーマバリデータ）/ `shadow_promotion_report.py`（Shadow SL reversal_wrap/profit_miss分類追加）  
 ダッシュボードバージョン: Step1〜4+追加A〜E完了 / 2026-05-16 opsStatusCard compact化・Watchlist改善・IBKRサブエージェントパネル再設計  
 特徴量スキーマ: `OUROBOROS_FEATURE_SCHEMA_VERSION=ohlc-chart-pattern-quality-market-phase-transition-near-tp-aiba-phase-fallback-mfe-mae-fib-elliott-v1`

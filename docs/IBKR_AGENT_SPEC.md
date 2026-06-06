@@ -1,8 +1,9 @@
 # IBKR サブエージェント スペック表
 
-> 更新日: 2026-05-08  
-> 対象: `MAIN/tools/ibkr_*.{py,sh}` + LaunchAgent plist群  
-> 目的: 各エージェントの役割・入出力・スケジュールを定義し、将来の変更時の整合性チェックに使う
+> 更新日: 2026-06-07  
+> 対象: `MAIN/tools/ibkr_*.{py,sh}` + LaunchAgent plist群 + `ibkr_bot.py` / `investor_council.py`  
+> 目的: 各エージェントの役割・入出力・スケジュールを定義し、将来の変更時の整合性チェックに使う  
+> 実装バージョン: `ibkr_bot.py=v2026.06.04.1`（投資円卓会議統合）
 
 ---
 
@@ -201,6 +202,54 @@ bash tools/ibkr_vm_sync.sh --force
 
 新ログ result: `LIVE_EXIT_STOPFILL`（ブローカー側STP約定の照合記録）。
 検証: モックアダプタでSTALE強制クローズ/STOPFILL照合/90秒ガードの3シナリオ合格。MSFT型の-$9.38ドリフトはSTP価格(-$2.31)で確定する想定。
+
+## 投資円卓会議（Investment Council / 2026-06-04 LIVE / ibkr_bot v2026.06.04.1）
+
+> note記事「実在投資家11人の思想トレース」ベースのALL-YESゲート。実装は `investor_council.py`（436行）、`ibkr_bot.py` から `ibkr_council_enabled=1` で起動。詳細スキルは `/council`。
+
+| パラメータ（IBKR_CONTROL.csv） | 値 | 意味 |
+|---|---|---|
+| `ibkr_council_enabled` | 1 | 円卓会議ゲート有効（**LIVE稼働中**） |
+| `ibkr_council_min_conviction` | 2.5 | 最低確信度スコア |
+| `ibkr_council_require_core_setup` | 1 | コアセットアップ必須 |
+| `ibkr_council_min_rr` | 2.0 | 最低リスクリワード比 |
+| `ibkr_council_overextended_pct` | 3.0 | 過伸長ブロック閾値（%） |
+| `ibkr_council_vertical_pct` | 4.0 | 垂直上昇ブロック閾値（%） |
+| `ibkr_council_counter_trend_daily_pct` | 0.8 | 逆張り遮断の日次変動閾値（%） |
+| `ibkr_council_open_skip_min` | 15 | 寄り後スキップ分数 |
+| `ibkr_council_weekly_dd_stop_usd` | -12.0 | 週次DDストップ（$） |
+| `ibkr_council_weekly_target_usd` | 0.0 | 週次目標（$・0=無効） |
+
+挙動: `COUNCIL_BLOCK`（逆張り等を遮断）/ 承認時のみエントリー。週次DD固定で `weekly_dd_stop_usd` 到達時は週内停止。
+
+## コツコツドカン対策（2026-06-04）
+
+| パラメータ（IBKR_CONTROL.csv） | 値 | 意味 |
+|---|---|---|
+| `ibkr_streak_stop_max_losses` | 2 | 連敗ストップ数（2連敗で当日エントリー停止） |
+| `ibkr_weekly_loss_limit_usd` | -80 | 週次損失上限（$） |
+
+## 監視銘柄・銘柄選定（2026-06-04 拡張）
+
+- `ibkr_monitor_symbols`: **40銘柄**（旧20→拡張）。テック中心に高配当/ディフェンシブ（XOM,CVX,OXY,UNH,LLY,JNJ,ABBV,COST,WMT,PG,CAT,RTX,DE,FCX,NEM,BAC,V,MA,NEE,AMT,BKNG）を追加。
+- `ibkr_symbol_select_mode=momentum` / `ibkr_symbol_select_top_n=8`: モメンタム上位8銘柄を毎ループ選定。
+
+## 現行キーパラメータ（IBKR_CONTROL.csv / VM=正本 2026-06-07時点）
+
+| パラメータ | 値 | 備考 |
+|---|---|---|
+| `ibkr_port` | 7496 | **LIVE port** |
+| `ibkr_trade_symbol` | QQQ | 基準銘柄 |
+| `ibkr_shares` | 1 | 1注文株数 |
+| `ibkr_tp_pct` / `ibkr_sl_pct` | 1.0 / -0.5 | R:R 2:1（2026-05-24 拡大） |
+| `ibkr_daily_loss_limit_usd` | -20 | 日次損失上限 |
+| `ibkr_max_trades_per_day` | 6 | 1日最大取引数 |
+| `ibkr_max_concurrent_positions` | 2 | 同時建玉上限 |
+| `ibkr_vix_block_threshold` | 30 | VIXゲート |
+| `ibkr_start_hour_et`–`ibkr_end_hour_et` | 9:45–15:50 ET | 取引時間帯 |
+| `ibkr_atr_tp_multiplier` | 1.5 | ATR適応型TP |
+| `ibkr_sl_cooldown_min` | 30 | SL後クールダウン |
+| `ibkr_chart_ai_enabled` / `ibkr_chart_ai_min_prob` | 1 / 0.80 | Chart AIゲート |
 
 ## 変更チェックリスト
 
