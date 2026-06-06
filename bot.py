@@ -145,6 +145,11 @@ ATR_LOW_PCT_DEFAULT = 0.04
 ATR_HIGH_PCT_DEFAULT = 0.22
 TREND_POWER_LOOKBACK_N_DEFAULT = 20
 TREND_POWER_STRONG_ER_DEFAULT = 0.45
+# chop回避レジームゲート(2026-06-07): ATR低(レンジ)×トレンド弱 のchopでエントリー遮断
+CHOP_FILTER_ENABLED_DEFAULT = False        # 既定OFF。有効化はCONTROL.csvで明示
+CHOP_FILTER_MODE_DEFAULT = "observe"       # observe=記録のみ(実取引不変) / block=実遮断
+CHOP_REQUIRE_WEAK_TREND_DEFAULT = True     # trend_power_regime==weak を必須にするか
+CHOP_BLOCK_ATR_REGIMES_DEFAULT = "low"     # chop扱いするatr_regime(カンマ区切り 例:"low" / "low,normal")
 TECH_AI_BOOST_DEFAULT = 0.14
 TECH_AI_PENALTY_DEFAULT = 0.18
 CHART_PATTERN_ENABLED_DEFAULT = True
@@ -1017,6 +1022,10 @@ class Cfg:
     atr_high_pct: float = ATR_HIGH_PCT_DEFAULT
     trend_power_lookback_n: int = TREND_POWER_LOOKBACK_N_DEFAULT
     trend_power_strong_er: float = TREND_POWER_STRONG_ER_DEFAULT
+    chop_filter_enabled: bool = CHOP_FILTER_ENABLED_DEFAULT
+    chop_filter_mode: str = CHOP_FILTER_MODE_DEFAULT
+    chop_require_weak_trend: bool = CHOP_REQUIRE_WEAK_TREND_DEFAULT
+    chop_block_atr_regimes: str = CHOP_BLOCK_ATR_REGIMES_DEFAULT
     tech_ai_boost: float = TECH_AI_BOOST_DEFAULT
     tech_ai_penalty: float = TECH_AI_PENALTY_DEFAULT
     chart_pattern_enabled: bool = CHART_PATTERN_ENABLED_DEFAULT
@@ -1332,6 +1341,20 @@ def build_runtime_config(control: Dict[str, str], ai_model: Dict[str, Any]) -> C
         _safe_float(control.get("trend_power_strong_er"), TREND_POWER_STRONG_ER_DEFAULT),
         0.0,
         1.0,
+    )
+    cfg.chop_filter_enabled = _safe_bool(control.get("chop_filter_enabled"), CHOP_FILTER_ENABLED_DEFAULT)
+    cfg.chop_filter_mode = (
+        _safe_str(control.get("chop_filter_mode"), CHOP_FILTER_MODE_DEFAULT).strip().lower()
+        or CHOP_FILTER_MODE_DEFAULT
+    )
+    if cfg.chop_filter_mode not in ("observe", "block"):
+        cfg.chop_filter_mode = CHOP_FILTER_MODE_DEFAULT
+    cfg.chop_require_weak_trend = _safe_bool(
+        control.get("chop_require_weak_trend"), CHOP_REQUIRE_WEAK_TREND_DEFAULT
+    )
+    cfg.chop_block_atr_regimes = (
+        _safe_str(control.get("chop_block_atr_regimes"), CHOP_BLOCK_ATR_REGIMES_DEFAULT).strip().lower()
+        or CHOP_BLOCK_ATR_REGIMES_DEFAULT
     )
     cfg.tech_ai_boost = max(0.0, _safe_float(control.get("tech_ai_boost"), TECH_AI_BOOST_DEFAULT))
     cfg.tech_ai_penalty = max(0.0, _safe_float(control.get("tech_ai_penalty"), TECH_AI_PENALTY_DEFAULT))
@@ -4034,6 +4057,67 @@ def resolve_trend_strength_observe(
             f"lookback_n={int(cfg.trend_strength_lookback_n)}",
         )
     return "", ""
+
+
+def classify_entry_regime(state: Dict[str, Any], cfg: Cfg) -> Dict[str, Any]:
+    """エントリー判定用に atr_regime / trend_power_regime を計算する。
+    閾値は calc_technical_indicator_snapshot と同一(low/high pct, strong_er*0.55=weak)。"""
+    hist = _get_ltp_tail(state, 0)
+    atr_pct = calc_atr_like_pct_from_series(hist, int(cfg.atr_n))
+    if atr_pct is None:
+        atr_regime = "NA"
+    elif float(atr_pct) <= float(cfg.atr_low_pct):
+        atr_regime = "low"
+    elif float(atr_pct) >= float(cfg.atr_high_pct):
+        atr_regime = "high"
+    else:
+        atr_regime = "normal"
+    er = calc_trend_efficiency_ratio(state, int(cfg.trend_power_lookback_n))
+    if er is None:
+        tp_regime = "NA"
+    elif float(er) >= float(cfg.trend_power_strong_er):
+        tp_regime = "strong"
+    elif float(er) <= max(0.10, float(cfg.trend_power_strong_er) * 0.55):
+        tp_regime = "weak"
+    else:
+        tp_regime = "normal"
+    return {
+        "atr_pct": atr_pct,
+        "atr_regime": atr_regime,
+        "trend_power": er,
+        "trend_power_regime": tp_regime,
+    }
+
+
+def resolve_chop_regime_observe(
+    signal: str,
+    state: Dict[str, Any],
+    cfg: Cfg,
+) -> Tuple[bool, str]:
+    """chop(レンジ)レジームでのエントリーを検出。
+    True を返したら呼び出し側で observe(記録のみ) または block(遮断) する。
+    chop条件: atr_regime が chop_block_atr_regimes に含まれ、かつ(必要なら)trend_power_regime==weak。"""
+    if not bool(cfg.chop_filter_enabled):
+        return False, ""
+    if signal not in ("BUY_CANDIDATE", "SELL_CANDIDATE"):
+        return False, ""
+    reg = classify_entry_regime(state, cfg)
+    atr_regime = str(reg.get("atr_regime") or "NA")
+    tp_regime = str(reg.get("trend_power_regime") or "NA")
+    block_atr = {s.strip() for s in str(cfg.chop_block_atr_regimes).split(",") if s.strip()}
+    atr_is_chop = atr_regime in block_atr
+    trend_is_chop = (tp_regime == "weak") if bool(cfg.chop_require_weak_trend) else True
+    if atr_is_chop and trend_is_chop:
+        er = reg.get("trend_power")
+        atr_pct = reg.get("atr_pct")
+        note = (
+            f"chop_regime atr_regime={atr_regime} tp_regime={tp_regime} "
+            f"er={'NA' if er is None else round(float(er), 4)} "
+            f"atr_pct={'NA' if atr_pct is None else round(float(atr_pct), 6)} "
+            f"mode={_safe_str(cfg.chop_filter_mode, 'observe')}"
+        )
+        return True, note
+    return False, ""
 
 
 def _get_ltp_tail(state: Dict[str, Any], n: int) -> List[float]:
@@ -7895,6 +7979,32 @@ def main() -> None:
                 "pos_id": "",
             })
         return
+
+    # (15i-2) chop回避レジームゲート: ATR低(レンジ)×トレンド弱 を遮断/記録
+    chop_hit, chop_note = resolve_chop_regime_observe(signal, state, cfg)
+    if chop_hit:
+        _chop_block = (_safe_str(cfg.chop_filter_mode, "observe") == "block")
+        log_trade({
+            "time": _now_str(now),
+            "result": "OBSERVE_CHOP_REGIME" if _chop_block else "OBSERVE_CHOP_WOULD_BLOCK",
+            "side": "",
+            "price": "",
+            "size": "",
+            "ltp": ltp,
+            "best_bid": best_bid,
+            "best_ask": best_ask,
+            "spread_pct": round(spread_pct * 100, 6),
+            "limit_pct": round(cfg.spread_limit_pct * 100, 6),
+                "ma_fast": "" if ma_fast is None else ma_fast,
+                "ma_slow": "" if ma_slow is None else ma_slow,
+                "trend": trend,
+                "signal": signal,
+                "note": _append_note(chop_note, feature_note),
+                "pos_id": "",
+            })
+        if _chop_block:
+            return
+        # observe モード: 記録のみで継続(実取引は不変)
 
     # (15j) observe_only => OBSERVE_OK
     if cfg.observe_only:
