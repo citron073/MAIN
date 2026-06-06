@@ -1,0 +1,12 @@
+[Unit]
+Description=Ouroboros champion-challenger promote gate (oneshot)
+After=network-online.target ouroboros-shadow.service
+Wants=network-online.target
+ConditionPathExists=/home/ubuntu/trading_bot/trading_bot/MAIN/tools/champion_challenger_promote.py
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/ubuntu/trading_bot/trading_bot/MAIN/.venv/bin/python tools/champion_challenger_promote.py --lookback-days 14 --apply

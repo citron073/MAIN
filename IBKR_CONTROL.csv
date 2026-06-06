@@ -1,0 +1,69 @@
+key,value
+ibkr_enabled,1
+ibkr_host,127.0.0.1
+ibkr_port,7496
+ibkr_client_id,20
+ibkr_trade_symbol,QQQ
+ibkr_trade_side,BOTH
+ibkr_shares,1
+ibkr_tp_pct,1.0
+ibkr_sl_pct,-0.5
+ibkr_daily_loss_limit_usd,-20
+ibkr_max_trades_per_day,6
+ibkr_max_concurrent_positions,2
+ibkr_signal_fast_n,5
+ibkr_signal_slow_n,20
+ibkr_start_hour_et,9
+ibkr_start_min_et,45
+ibkr_end_hour_et,15
+ibkr_end_min_et,50
+ibkr_eod_close_hour_et,15
+ibkr_eod_close_min_et,55
+ibkr_monitor_symbols,"AAPL,MSFT,NVDA,TSLA,AMZN,GOOGL,META,AMD,AVGO,NFLX,PLTR,JPM,GS,COIN,MU,QQQ,SPY,IWM,CRM,F,XOM,CVX,OXY,UNH,LLY,JNJ,ABBV,COST,WMT,PG,CAT,RTX,DE,FCX,NEM,BAC,V,MA,NEE,AMT,BKNG"
+ibkr_vix_block_threshold,30
+ibkr_symbol_select_mode,momentum
+ibkr_symbol_select_top_n,8
+ibkr_sma_min_divergence_pct,0.0
+# ── コツコツドカン対策 ──
+ibkr_streak_stop_max_losses,2
+ibkr_weekly_loss_limit_usd,-80
+# ── Logic Improvements ──
+ibkr_atr_tp_multiplier,1.5
+ibkr_sl_cooldown_min,30
+# ── Chart AI Gate ──
+ibkr_chart_ai_enabled,1
+ibkr_chart_ai_min_prob,0.80
+# ── Day Trading Setups ──
+ibkr_setup_mode,multi
+ibkr_setup_primary_signal,sma
+ibkr_setup_fallback_signal,sma
+ibkr_setup_vwap_enabled,0
+ibkr_setup_volume_filter,0
+ibkr_setup_log_detail,1
+# Phase 1: Opening Range Breakout
+ibkr_setup_orb_enabled,1
+ibkr_setup_orb_lookback_min,15
+ibkr_setup_orb_volume_threshold,1.5
+ibkr_setup_orb_use_vwap,1
+# Phase 2: Dip and Rip
+ibkr_setup_dip_rip_enabled,0
+ibkr_setup_dip_rip_gap_threshold,1.5
+ibkr_setup_dip_rip_vwap_retrace_pct,2.0
+# Phase 3: Intraday VCP
+ibkr_setup_vcp_enabled,0
+ibkr_setup_vcp_lookback,10
+ibkr_setup_vcp_volume_threshold,1.5
+# Phase 4: Momentum Breakout
+ibkr_setup_momentum_enabled,0
+ibkr_setup_momentum_volume_surge_ratio,3.0
+ibkr_setup_momentum_min_move_pct,2.0
+ibkr_council_enabled,1
+ibkr_council_min_conviction,2.5
+ibkr_council_require_core_setup,1
+ibkr_council_min_rr,2.0
+ibkr_council_overextended_pct,3.0
+ibkr_council_vertical_pct,4.0
+ibkr_council_counter_trend_daily_pct,0.8
+ibkr_council_open_skip_min,15
+ibkr_council_weekly_dd_stop_usd,-12.0
+ibkr_council_weekly_target_usd,0.0

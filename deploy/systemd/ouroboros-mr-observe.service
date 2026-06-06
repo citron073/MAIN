@@ -1,0 +1,23 @@
+[Unit]
+Description=Ouroboros mean reversion observe-only runner
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/home/ubuntu/trading_bot/trading_bot/MAIN/CONTROL_mr_observe.csv
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/etc/ouroboros/secrets.env
+Environment=OUROBOROS_INSTANCE=mr_observe
+Environment=OUROBOROS_CONTROL_PATH=/home/ubuntu/trading_bot/trading_bot/MAIN/CONTROL_mr_observe.csv
+Environment=OUROBOROS_RUN_LOCK_PATH=/home/ubuntu/trading_bot/trading_bot/MAIN/.run_lock_mr_observe
+ExecStart=/home/ubuntu/trading_bot/trading_bot/MAIN/.venv/bin/python run.py --interval 60 --print-tick
+StandardOutput=append:/home/ubuntu/trading_bot/trading_bot/MAIN/run_mr_observe.log
+StandardError=append:/home/ubuntu/trading_bot/trading_bot/MAIN/run_mr_observe.log
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

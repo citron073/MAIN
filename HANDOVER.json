@@ -1,0 +1,875 @@
+{
+  "meta": {
+    "updated_at_jst": "2026-05-13",
+    "last_infra_change": "2026-04-22: atomic state write / orphan order cancel / API retry / CONTROL rollout_mode=LIVE / ai_auto_train_enabled=1 / ai_train_shadow_boost=0.20 / no_paper_hours=14,15,16 / ai_train_weekly_bad_hours=14,15,16 / daily_loss_limit_pct=-2.0 / 2026-04-26: note CMS central orchestration skill/agents/tools added; local-only wrappers and context export / 2026-04-29: MR observe runner A-rank PAPER promotion enabled safely in MR-only instance / 2026-05-06: VM IB Gateway mode added to daily_ops_check, ibkr_gateway_watch, and unified dashboard using VM-local 127.0.0.1:7497 as effective API endpoint / 2026-05-07: VM Tailscale added for iPhone dashboard access at 100.66.216.5:8793 / 2026-05-07: VM KEIBA Streamlit and status API added on Tailscale ports 8511 and 8789",
+    "purpose": "Cross-chat operational handover for Ouroboros bot stack",
+    "source": "repository snapshot + confirmed operator logs in this thread"
+  },
+  "paths": {
+    "local_workspace": "/Users/tani/trading_bot/trading_bot",
+    "local_main": "/Users/tani/trading_bot/trading_bot/MAIN",
+    "vm_main_expected": "/home/ubuntu/trading_bot/MAIN",
+    "note": "VM path can differ; always confirm with `pwd` before running systemd-related commands.",
+    "vm_main_current": "/home/ubuntu/trading_bot/MAIN"
+  },
+  "versions": {
+    "dashboard": "v1.1.9",
+    "widget_status_server": "OuroborosWidget/1.0",
+    "yt_tool": "v1.99.75",
+    "bot_logic": "2026.05.21.1",
+    "feature_schema": "ohlc-chart-pattern-quality-market-phase-transition-near-tp-aiba-phase-fallback-mfe-mae-fib-elliott-v1",
+    "mr_observe_phase": "phase1.5-a-rank-paper",
+    "weekly_llm_model_default": "qwen2.5:0.5b",
+    "weekly_llm_timeout_sec_default": 180,
+    "daily_reflection_cloud_llm_provider": "openai_responses_optional",
+    "weekly_cloud_llm_provider": "openai_responses_optional"
+  },
+  "services": {
+    "drift_watch": {
+      "script": "MAIN/tools/market_drift_watch.py",
+      "service_template": "MAIN/deploy/systemd/ouroboros-drift-watch.service",
+      "timer_template": "MAIN/deploy/systemd/ouroboros-drift-watch.timer",
+      "schedule": "every 30 minutes",
+      "critical_exec_flags": [
+        "--min-recent-closed 6",
+        "--min-baseline-closed 25",
+        "--pf-drop-th 0.15",
+        "--avg-ret-drop-th 0.02",
+        "--win-rate-drop-th 6",
+        "--apply-train-freeze",
+        "--auto-unfreeze",
+        "--apply-trade-pause",
+        "--auto-resume-trade",
+        "--apply-hour-block",
+        "--auto-unblock-hours",
+        "--apply-risk-tighten",
+        "--auto-restore-risk",
+        "--risk-alert-daily-loss-limit-pct -0.30",
+        "--risk-alert-streak-max-losses 2",
+        "--resume-require-consecutive-normal 4",
+        "--resume-canary-runs 2",
+        "--insufficient-auto-relax-hours",
+        "--insufficient-relax-after-runs 4",
+        "--insufficient-relax-drop-hours 1",
+        "--insufficient-relax-max-applies 2",
+        "--backup-dir backups/drift_watch",
+        "--backup-max-keep 50",
+        "--lock-file /tmp/ouroboros-drift-watch.lock"
+      ]
+    },
+    "weekly_autotrain": {
+      "script": "MAIN/tools/weekly_auto_feedback.py",
+      "service_template": "MAIN/deploy/systemd/ouroboros-weekly-autotrain.service",
+      "timer_template": "MAIN/deploy/systemd/ouroboros-weekly-autotrain.timer",
+      "schedule": "Mon 00:20",
+      "critical_exec_flags": [
+        "--mode previous-week",
+        "--apply-control",
+        "--reset-auto-train-day",
+        "--llm-mode auto",
+        "--ollama-model qwen2.5:0.5b",
+        "--ollama-timeout-sec 180"
+      ]
+    },
+    "trade_notifier": {
+      "script": "MAIN/tools/trade_event_notifier.py",
+      "service_template": "MAIN/deploy/systemd/ouroboros-trade-notifier.service",
+      "timer_template": "MAIN/deploy/systemd/ouroboros-trade-notifier.timer",
+      "schedule": "every 60 seconds",
+      "daily_report_triggers": [
+        "runner_off",
+        "out_of_time",
+        "day_rollover"
+      ],
+      "daily_reflection": {
+        "json_output": "MAIN/daily_report_out/daily_reflection_YYYYMMDD.json",
+        "llm_mode": "auto",
+        "ollama_base_url": "http://127.0.0.1:11434",
+        "ollama_model": "qwen2.5:1.5b",
+        "fallback_enabled": true
+      },
+      "safe_auto_apply": {
+        "enabled": true,
+        "allow_keys": [
+          "ai_train_weekly_bad_hours",
+          "no_paper_hours"
+        ],
+        "min_confidence": "high",
+        "max_changes": 2,
+        "approver": "notifier_auto_safe",
+        "manual_only_keys": [
+          "daily_loss_limit_pct",
+          "streak_stop_enabled",
+          "streak_stop_max_losses"
+        ]
+      },
+      "state_change_events": [
+        "risk_stop_changed",
+        "runner_state_changed",
+        "dashboard_state_changed",
+        "ngrok_state_changed",
+        "drift_state_changed",
+        "market_phase_changed"
+      ]
+    },
+    "morning_start_check": {
+      "script": "MAIN/tools/morning_start_guard.py",
+      "service_template": "MAIN/deploy/systemd/ouroboros-morning-start-check.service",
+      "timer_template": "MAIN/deploy/systemd/ouroboros-morning-start-check.timer",
+      "schedule": "every 15 minutes",
+      "window": "20 minutes before start_hour to 5 minutes after",
+      "safe_conditions": [
+        "paper_mode=0",
+        "live_enabled=1",
+        "observe_only=0",
+        "safety_hard_block=0",
+        "_risk_stop=OFF",
+        "_streak_stop=OFF",
+        "_drift_watch.status=NORMAL"
+      ],
+      "actions": [
+        "set today_on=1",
+        "set trade_enabled=1",
+        "start ouroboros-bot.service when inactive"
+      ],
+      "sample_recovery": [
+        "previous-day daily_loss_breach disable can be re-enabled in the morning when drift=INSUFFICIENT and trade_paused_by_drift=false",
+        "light sample shortage can also re-enable in the morning when remaining_samples<=4 and risk_tightened_by_drift=false",
+        "deep sample shortage can re-enable in the morning when remaining_samples<=6 with temporary tighter risk controls",
+        "manual hard stop should use observe_only=1 or safety_hard_block=1"
+      ]
+    },
+    "ibkr_gateway_monitor": {
+      "script": "MAIN/test_ibkr_connection.py",
+      "daily_ops_script": "MAIN/tools/daily_ops_check.py",
+      "watch_script": "MAIN/tools/ibkr_gateway_watch.py",
+      "vm_readiness_script": "MAIN/tools/vm_ibkr_gateway_readiness.py",
+      "tunnel_script": "MAIN/tools/open_vm_ibkr_tunnel.sh",
+      "mode": "VM IB Gateway Paper local monitor",
+      "effective_api_endpoint": "VM 127.0.0.1:7497",
+      "read_only_smoke": "ssh ubuntu@161.33.26.35 'cd /home/ubuntu/trading_bot/MAIN && python3 test_ibkr_connection.py --host 127.0.0.1 --port 7497 --client-id 11 --stocks AAPL,MSFT,NVDA,TSLA,QQQ,SPY --fx USDJPY'",
+      "dashboard_fields": [
+        "api_mode=local",
+        "effective_port_status.open=true",
+        "effective_runtime_status.runtime=IB Gateway",
+        "active_error_available=false"
+      ],
+      "safety": [
+        "orders_not_touched",
+        "public_7497_not_opened",
+        "readiness_is_read_only",
+        "old_error_logs_kept_but_inactive_after_success"
+      ]
+    },
+    "vm_dashboard_ops": {
+      "deploy_script": "MAIN/tools/deploy_vm_dashboard_ops.sh",
+      "remote_main": "/home/ubuntu/trading_bot/MAIN",
+      "dashboard_service": "ouroboros-unified-dashboard.service",
+      "dashboard_url_vm_local": "http://127.0.0.1:8793/tools/unified_dashboard.html",
+      "timers": {
+        "ibkr_readonly_smoke": "ouroboros-ibkr-readonly-smoke.timer every 15 minutes",
+        "daily_ops_check": "ouroboros-daily-ops-check.timer every 5 minutes",
+        "ibkr_gateway_watch": "ouroboros-ibkr-gateway-watch.timer every 5 minutes"
+      },
+      "confirmed_2026_05_06_2335_jst": {
+        "dashboard_ok": true,
+        "ibkr_connected": true,
+        "needs_smoke": false,
+        "next_action": "OK",
+        "version_consistency_ok": true,
+        "watch": "OK"
+      },
+      "confirmed_2026_05_07_0534_jst": {
+        "ibkr_connected": true,
+        "effective_port_open": true,
+        "watch_ok": true,
+        "watch_ntfy": "HTTP 200"
+      },
+      "tailscale": {
+        "installed": true,
+        "version": "1.96.4",
+        "vm_ip": "100.66.216.5",
+        "iphone_dashboard_url": "http://100.66.216.5:8793/tools/unified_dashboard.html",
+        "vm_self_check": "HTTP/1.0 200 OK",
+        "note": "Mac-side Tailscale may be disconnected; iPhone must have Tailscale ON to open the VM URL."
+      },
+      "external_access_note": "service listens on VM 0.0.0.0:8793. Public http://161.33.26.35:8793 may still time out via OCI ingress, but Tailnet access is available at http://100.66.216.5:8793/tools/unified_dashboard.html"
+    },
+    "shadow_runner": {
+      "service_template": "MAIN/deploy/systemd/ouroboros-shadow.service",
+      "instance_name": "shadow",
+      "control_path": "MAIN/CONTROL_shadow.csv",
+      "run_lock_path": "MAIN/.run_lock_shadow",
+      "state_path": "MAIN/state_shadow.json",
+      "logs_dir": "logs/instances/shadow",
+      "runner_log": "MAIN/run_shadow.log",
+      "run_interval_sec": 60,
+      "runtime_profile": {
+        "paper_mode": 1,
+        "live_enabled": 0,
+        "trade_enabled": 1,
+        "start_hour": 0,
+        "end_hour": 24
+      },
+      "training_absorption": {
+        "enabled": true,
+        "control_key": "ai_train_include_shadow",
+        "shadow_boost": 0.7
+      },
+      "operational_notes": [
+        "shadow activity is written to logs/instances/shadow rather than main logs/trade_log_*.csv",
+        "widget shadow_runner_alive is based on .run_lock_shadow pid liveness",
+        "state_shadow.json is sparser than main state.json, so use service + runner log + shadow logs for verification",
+        "when bot.py or run.py changes, restart ouroboros-shadow.service as well as ouroboros-bot.service because shadow is a long-running process",
+        "shadow uses exit_technical_enabled=1 to test earlier paper-only reversal exits before promoting any change to main",
+        "shadow also uses trend_strength_filter_enabled=1 with lookback_n=20 and min_er=0.28 to skip weak/choppy entries as OBSERVE_TREND_STRENGTH_WEAK before promoting any trend-strength filter to main",
+        "shadow also uses weak_progress_exit_enabled=1 with min_hold=30 and max_best_fav=0.05 to close flat timeout candidates earlier without changing main",
+        "shadow also uses progress_reversal_exit_enabled=1 with min_hold=20, min_best_fav=0.08, and max_current_fav=0.03 to exit progressed-then-faded paper trades before they degrade into later technical timeouts",
+        "shadow also uses no_follow_through_exit_enabled=1 with min_hold=5, max_best_fav=0.01, and max_current_fav=0.00 to exit HTF-aligned but zero-follow-through paper trades before they hit SL",
+        "shadow also uses htf15_context_enabled=1, htf60_context_enabled=1, htf_context_lookback_n=8, htf_bias_slope_pct=0.02, and ai_use_htf_context=1 so 15m bias-trendline-channel plus 60m bias-only context can be observed before any main rollout",
+        "shadow also uses htf60_countertrend_penalty=0.20 and htf15_60_conflict_penalty=0.25 so entries that look good on 15m but fight the 60m bias are penalized more heavily",
+        "OBSERVE_AI_BLOCK notes now include htf60_countertrend=1 and htf15_60_conflict=1, and daily review/widget expose those block counts as HTF60逆風 and 15/60ねじれ",
+        "daily reflection now also emits shadow_htf_hint/reason so filter / htf / exit can be reviewed separately in notifications and widgets",
+        "daily reflection can optionally use OpenAI Responses API by setting trade_notify_daily_reflection_llm_provider=openai or trade_notify_daily_reflection_llm_mode=openai; API keys must come from env such as OPENAI_API_KEY, not secrets.toml plaintext",
+        "daily reflection auto mode with provider=openai falls back to Ollama and then deterministic fallback if cloud generation fails, so notifier delivery should not be blocked by cloud LLM errors",
+        "the 2026-04-08 shadow SL sample was not a flat timeout miss; it reached best_fav=0.119989% once and then reversed into PAPER_EXIT_SL, so treat it as reversal-wrap rather than profit-miss",
+        "widget and daily report now expose shadow exit_tech plus trend_weak, weak_progress, progress_reversal, progress_timeout, no_follow_through, and pure timeout counts so timeout reduction can be compared against the new guard",
+        "shadow metrics should be read as weak=flat trades closed by WEAK_PROGRESS, pr=progressed trades closed by PROGRESS_REVERSAL after giving back to current_fav<=0.03%, pto=trades that reached best_fav>=0.08% before timing out technically, nf=zero-follow-through trades closed by NO_FOLLOW_THROUGH, and timeout=pure TIMEOUT that was neither weak_progress nor progress_timeout nor progress_reversal nor no_follow_through",
+        "daily reflection LLM prompt/fallback now receives shadow_filter_hint/reason plus shadow_exit_hint/reason so the next-day recommendation can mention maintain/loosen/tighten for trend-strength and maintain/earlier/observe for WEAK_PROGRESS exits",
+        "widget and daily-reflection page now also read latest reflection shadow_filter_hint/shadow_exit_hint so large widget and reflection detail can show shadow adjustment guidance without waiting for the notification text",
+        "daily reflection also carries loss_pattern_breakdown so 反転巻き込み / 伸び不足 / entry遅れ can be surfaced in review text and the LLM prompt",
+        "daily reflection also carries opportunity_pattern_breakdown so entry約定失敗 / exit取り逃し / 時間帯回避 / 時間ブロック / spread回避 can be surfaced in review text and the LLM prompt",
+        "weekly auto feedback now also compares main vs shadow and stores shadow_weekly_review with 昇格候補 / 保留 / 差し戻し / 評価保留 in state.json",
+        "weekly auto feedback can optionally use OpenAI Responses API with --llm-mode openai --openai-model gpt-5.4-mini; default auto mode still prefers local Ollama for stability on the current VM",
+        "weekly auto feedback also compares main vs shadow loss/opportunity patterns and stores pattern_hint/pattern_reason such as entry品質不足 / 執行品質不足 / 逃がし不足 / 伸び不足 / 昇格阻害小",
+        "widget/Web weekly card now reads _weekly_auto_feedback.shadow_weekly_review and shows a short weekly hint such as 保留 / entry品質不足",
+        "weekly shadow compare defaults to ../logs/instances/shadow and can be overridden with --shadow-logs-dir",
+        "2026-04-04 VM dry-run confirmed weekly shadow compare for 20260323-20260329 with decision=評価保留 because main_closed=6 while shadow_closed=140"
+      ]
+    },
+    "mr_observe_runner": {
+      "service_template": "MAIN/deploy/systemd/ouroboros-mr-observe.service",
+      "instance_name": "mr_observe",
+      "control_path": "MAIN/CONTROL_mr_observe.csv",
+      "run_lock_path": "MAIN/.run_lock_mr_observe",
+      "state_path": "MAIN/state_mr_observe.json",
+      "logs_dir": "logs/instances/mr_observe",
+      "runner_log": "MAIN/run_mr_observe.log",
+      "run_interval_sec": 60,
+      "notes": [
+        "MR observe runner is paper-only and remains LIVE-disabled",
+        "It emits OBSERVE_MR / OBSERVE_MR_FILTER_NG / OBSERVE_MR_TRIGGER, and promotes only A-rank trigger/reclaim setups to PAPER when mr_paper_enabled=1",
+        "Use it to collect PAPER outcome samples without affecting main/shadow live logic",
+        "Primary review points are mr_rank distribution, mr_level_type, mr_reclaim, mr_stop_pct, mr_htf15_bias, mr_htf15_trendline, mr_htf15_channel_pos, and mr_htf60_bias",
+        "Use tools/mr_observe_summary.py for a quick per-day summary"
+      ]
+    },
+    "keiba_vm": {
+      "remote_dir": "/home/ubuntu/trading_bot/KEIBA",
+      "streamlit_service": "ouroboros-keiba-streamlit.service",
+      "status_service": "ouroboros-keiba-status-server.service",
+      "streamlit_url_tailscale": "http://100.66.216.5:8511",
+      "status_url_tailscale": "http://100.66.216.5:8789/keiba-status.json",
+      "status_actions_disabled": true,
+      "confirmed_2026_05_07_1756_jst": {
+        "streamlit_active": true,
+        "status_server_active": true,
+        "streamlit_health": "ok",
+        "status_health": {
+          "ok": true
+        },
+        "tailscale_app_health": "HTTP/1.1 200 OK"
+      },
+      "safety": [
+        "Tailscale-limited access path",
+        "status API POST actions disabled",
+        "no betting/order execution added"
+      ]
+    }
+  },
+  "bot_runtime_defaults": {
+    "buy_fast_ma_distance_pct": 0.12,
+    "sell_fast_ma_distance_pct": 0.1,
+    "trend_flip_cooldown_min": 10,
+    "canary_tp_scale": 0.65,
+    "news_entry_block_ahead_min": 60,
+    "pre_news_exit_buffer_min": 10,
+    "pre_news_exit_min_hold_min": 5,
+    "mr_observe_layer": {
+      "implemented": true,
+      "default_enabled": false,
+      "requires_observe_only": true,
+      "results": [
+        "OBSERVE_MR",
+        "OBSERVE_MR_FILTER_NG",
+        "OBSERVE_MR_TRIGGER"
+      ],
+      "recommended_phase1": {
+        "observe_only": true,
+        "mr_observe_enabled": true,
+        "mr_level_lookback_n": 24,
+        "mr_spike_lookback_n": 12,
+        "mr_spike_min_move_pct": 0.18,
+        "mr_touch_tolerance_pct": 0.08,
+        "mr_ma_cross_lookback_n": 16,
+        "mr_range_max_ma_slope_pct": 0.08,
+        "mr_range_max_ma_gap_pct": 0.18,
+        "mr_stop_min_distance_pct": 1.0,
+        "htf15_context_enabled": true,
+        "htf60_context_enabled": true,
+        "htf_context_lookback_n": 8,
+        "htf_bias_slope_pct": 0.02
+      }
+    },
+    "chart_pattern_layer": {
+      "implemented": true,
+      "default_enabled": true,
+      "feature_schema": "ohlc-chart-pattern-quality-market-phase-transition-near-tp-aiba-phase-fallback-mfe-mae-fib-elliott-v1",
+      "ohlc_source": "internal ltp-derived candles",
+      "ohlc_timeframe_min_default": 5,
+      "ohlc_state_keys": [
+        "_ohlc_current",
+        "ohlc_history"
+      ],
+      "quality_gate": {
+        "min_bar_ticks_key": "chart_pattern_min_bar_ticks",
+        "quality_lookback_key": "chart_pattern_quality_lookback_bars",
+        "note_keys": [
+          "cp_quality",
+          "cp_avg_ticks"
+        ],
+        "ai_score_rule": "Only cp_quality=OK can affect chart_pattern_comp; THIN remains log-only."
+      },
+      "patterns": [
+        "DOUBLE_TOP",
+        "DOUBLE_BOTTOM",
+        "HEAD_AND_SHOULDERS"
+      ],
+      "note_keys": [
+        "cp_name",
+        "cp_stage",
+        "cp_bias",
+        "cp_confirmed",
+        "cp_trend",
+        "cp_neckline",
+        "cp_quality",
+        "cp_avg_ticks"
+      ],
+      "daily_report_surface": [
+        "technical_feature_outcomes",
+        "pattern=...",
+        "pattern_quality=..."
+      ],
+      "docs": "MAIN/docs/OUROBOROS_TRADING_SPEC_TABLE.md"
+    },
+    "market_phase_layer": {
+      "implemented": true,
+      "default_enabled": true,
+      "block_b_default": false,
+      "phase_definitions": {
+        "A": "downtrend / SELL context",
+        "B": "range or flat / avoid context",
+        "C": "uptrend / BUY context"
+      },
+      "control_keys": [
+        "market_phase_enabled",
+        "market_phase_block_b_enabled",
+        "market_phase_lookback_n",
+        "market_phase_flat_slope_pct",
+        "market_phase_flat_gap_pct",
+        "market_phase_range_max_width_pct",
+        "market_phase_ai_boost",
+        "market_phase_ai_penalty",
+        "ai_use_market_phase",
+        "trade_notify_market_phase_enabled"
+      ],
+      "note_keys": [
+        "phase",
+        "phase_reason",
+        "phase_slope",
+        "phase_gap",
+        "phase_range",
+        "prev_high",
+        "prev_low",
+        "up_break",
+        "down_break",
+        "phase_momentum",
+        "phase_transition"
+      ],
+      "state_keys": [
+        "_market_phase"
+      ],
+      "result_if_blocked": "OBSERVE_PHASE_B",
+      "daily_review": [
+        "market_phase_outcomes",
+        "market_phase_transition_counts",
+        "observe_phase_b_n",
+        "notification line: 局面=... / 転換=... / B回避=N"
+      ],
+      "safety": "B phase hard-block is opt-in via market_phase_block_b_enabled=1; OHLC fallback only fills UNKNOWN context and remains a light AI context.",
+      "fallback_reasons": [
+        "SWING_UP",
+        "SWING_DOWN",
+        "OHLC_UP_SOFT",
+        "OHLC_DOWN_SOFT",
+        "OHLC_FLAT"
+      ]
+    },
+    "aiba_style_layer": {
+      "implemented": true,
+      "default_enabled": true,
+      "ai_enabled_default": false,
+      "control_keys": [
+        "aiba_style_enabled",
+        "aiba_style_ai_enabled",
+        "aiba_ma_short_n",
+        "aiba_ma_mid_n",
+        "aiba_ma_long_n",
+        "aiba_nine_rule_alert_n",
+        "aiba_try_fail_lookback_n",
+        "aiba_try_fail_min_count",
+        "aiba_style_ai_boost",
+        "aiba_style_ai_penalty",
+        "ai_use_aiba_style"
+      ],
+      "note_keys": [
+        "aiba_trend",
+        "aiba_cross",
+        "aiba_ppp",
+        "aiba_run",
+        "aiba_9",
+        "aiba_try_fail",
+        "aiba_try_fail_count",
+        "aiba_style_comp"
+      ],
+      "scope": "Phase 1: kuchibashi/rev-kuchibashi, PPP/rev-PPP, nine-rule alert, try-fail observation. Hanshin candle shape remains future Phase 2.",
+      "safety": "Logging is enabled by default. AI score impact requires explicit aiba_style_ai_enabled=1."
+    },
+    "live_exit_limit_mode": "BUY=ask+offset / SELL=bid-offset",
+    "trade_system_review": {
+      "implemented": true,
+      "script": "MAIN/tools/trade_system_review.py",
+      "output_dir": "MAIN/review_out",
+      "snapshot_arg": "--snapshot-dir .local_llm/vm_snapshot/latest",
+      "scope": "local-only review of main/shadow logs, read-only VM snapshot logs, feature outcomes, feature presence, effective config, missing inputs, and hypotheses",
+      "safety": {
+        "writes_control": false,
+        "service_restarts": false,
+        "external_api": false,
+        "secrets_read": false
+      }
+    },
+    "notes": [
+      "BUY-side fast-MA-near filter added on 2026-03-29 and tightened to 0.12 on 2026-04-03",
+      "Fresh trend flip entries are blocked for 10 minutes",
+      "CANARY take-profit is scaled down for quicker sample collection",
+      "Live exits use marketable limit prices to avoid TP/SL exit_unfilled",
+      "New entries are blocked when a lunch/news block is imminent",
+      "Open positions flatten with PAPER_EXIT_PRENEWS before lunch/news windows",
+      "Mean reversion observe-only layer stays dormant unless observe_only=1 and mr_observe_enabled=1",
+      "Higher-timeframe context is enabled only on shadow and MR observe by default, using 15m bias-trendline-channel and 60m bias-only roles",
+      "5m OHLC chart-pattern recognition is implemented with a tick-density quality gate; cp_quality=THIN is record-only and cannot boost/veto AI score",
+      "shadow and mr_observe systemd templates run at 60 seconds while main stays at 300 seconds to improve observe sample density without increasing main load",
+      "A/B/C market phase recognition is implemented; phase=B hard entry blocking is opt-in so main behavior is not abruptly changed",
+      "Market phase transitions are stored in state._market_phase and can be notified via trade_notify_market_phase_enabled=1",
+      "shadow uses near_tp_giveback_exit_enabled=1 to test exit_tech=NEAR_TP_GIVEBACK for TP-near-miss giveback cases before touching main",
+      "Aiba-style Phase 1 labels are logged by default; aiba_style_ai_enabled remains opt-in before affecting AI score",
+      "trade_system_review.py can produce local-only JSON/MD review before changing settings",
+      "trade_system_review.py --snapshot-dir .local_llm/vm_snapshot/latest can review read-only VM snapshots without VM writes",
+      "Market phase now falls back from NO_CLEAR_PHASE to OHLC swing/close soft classification so AI gate has fewer UNKNOWN contexts without hard-blocking entries."
+    ]
+  },
+  "operator_tools": {
+    "widget_status": {
+      "script": "MAIN/tools/widget_status.py",
+      "launcher": "MAIN/tools/start_widget_status_server.sh",
+      "vm_systemd_service_template": "MAIN/deploy/systemd/ouroboros-widget-status.service",
+      "vm_systemd_install": "MAIN/tools/install_systemd_services.sh --with-widget-status",
+      "vm_systemd_unit": "ouroboros-widget-status.service",
+      "mac_launchagent_install": "MAIN/tools/install_widget_status_launchagent.sh",
+      "mac_launchagent_uninstall": "MAIN/tools/uninstall_widget_status_launchagent.sh",
+      "routes": [
+        "/",
+        "/widget",
+        "/widget-status.json",
+        "/widget-status.txt"
+      ],
+      "shadow_day_payload": {
+        "enabled": true,
+        "fields": [
+          "pnl_jpy_sum",
+          "closed_n",
+          "win_rate_pct",
+          "last_result"
+        ]
+      },
+      "desktop_sample": "MAIN/widget/swiftbar/ouroboros.1m.sh",
+      "iphone_sample": "MAIN/widget/scriptable/OuroborosWidget.js",
+      "docs": "MAIN/WIDGETS.md"
+    },
+    "daily_reflection_snapshot_fallback": {
+      "script": "MAIN/tools/trade_event_notifier.py",
+      "default_snapshot_dir": "MAIN/.local_llm/vm_snapshot/latest",
+      "cli_arg": "--daily-report-snapshot-dir",
+      "enabled_key": "trade_notify_daily_goal_snapshot_fallback_enabled",
+      "report_fields": [
+        "daily_review.report_log_source",
+        "daily_review.report_logs_dir",
+        "daily_review.report_log_source_reason",
+        "daily_review.report_snapshot_name",
+        "daily_review.report_snapshot_age_min",
+        "daily_review.report_snapshot_freshness"
+      ],
+      "safety": "read-only snapshot fallback; no VM writes, no CONTROL writes by itself"
+    },
+    "effective_config_dump": {
+      "script": "MAIN/tools/effective_config_dump.py",
+      "commands": [
+        "python3 tools/effective_config_dump.py",
+        "python3 tools/effective_config_dump.py --snapshot-dir .local_llm/vm_snapshot/latest"
+      ],
+      "fields": [
+        "watch_values",
+        "raw_control_high_risk",
+        "bot_version",
+        "feature_schema"
+      ],
+      "safety": "read-only config dump; no CONTROL writes, no VM service restarts, no external API"
+    },
+    "shadow_promotion_feature_review": {
+      "script": "MAIN/tools/shadow_promotion_report.py",
+      "status": "REPORT_ONLY",
+      "fields": [
+        "feature_gate_review.phase_top",
+        "feature_gate_review.aiba_top",
+        "feature_gate_review.exit_tech.near_tp_giveback_exit_n",
+        "feature_gate_review.watch"
+      ],
+      "decision_impact": "none until enough samples are reviewed"
+    },
+    "mfe_mae_review": {
+      "implemented": true,
+      "bot_note_fields": [
+        "best_fav",
+        "max_adv",
+        "current_fav"
+      ],
+      "review_fields": [
+        "avg_mfe_pct",
+        "avg_mae_proxy_pct",
+        "avg_giveback_pct",
+        "progress_reached_n"
+      ],
+      "safety": "review/logging only; entry and exit decisions are unchanged by the reporting fields"
+    },
+    "note_cms_central": {
+      "source_of_truth": "repo root note_cms/",
+      "web_launcher": "MAIN/tools/run_note_cms_web.sh",
+      "sync_launcher": "MAIN/tools/sync_note_cms_saved_google.sh",
+      "context_export": "MAIN/tools/note_cms_central_skill.py",
+      "context_output": "MAIN/.harness/note_cms_central_context.json",
+      "agent_config": "note_cms_data/agents.json",
+      "marketing_department": {
+        "tool": "MAIN/tools/note_cms_marketing_department.py",
+        "skill": "MAIN/.claude/skills/note-cms-marketing-department/SKILL.md",
+        "manual": "MAIN/docs/NOTE_CMS_MARKETING_DEPARTMENT.md",
+        "context_output": "MAIN/.harness/note_cms_marketing_department_context.json",
+        "data_layer": [
+          "note_cms_data/marketing/atoms.csv",
+          "note_cms_data/marketing/pipeline.csv",
+          "note_cms_data/marketing/outputs.csv",
+          "note_cms_data/marketing/import_history.json"
+        ],
+        "web_ui": {
+          "view": "Marketing",
+          "features": [
+            "import_url_pdf_text",
+            "bulk_import_url_list",
+            "bulk_import_pdf_folder",
+            "preview_import_sources",
+            "skip_duplicate_sources",
+            "write_import_history",
+            "retry_failed_imports",
+            "retry_non_duplicate_imports",
+            "auto_extract_note_url",
+            "auto_internal_link_titles",
+            "preview_internal_link_candidates",
+            "suggest_related_article_links",
+            "simplified_write_view",
+            "light_business_ui_default",
+            "create_atom",
+            "create_article_from_atom",
+            "register_output",
+            "week_review"
+          ]
+        },
+        "source_article": "【有料級】Claude Codeで1人マーケ部門を作った全記録",
+        "principle": "shared context + skill layers + CSV data layer; note posting remains manual"
+      },
+      "article_assignment_fields": [
+        "writer_agent",
+        "checker_agent",
+        "publisher_agent",
+        "x_agent"
+      ],
+      "mac_launchagent_install": "MAIN/tools/install_note_cms_sync_launchagent.sh",
+      "mac_launchagent_uninstall": "MAIN/tools/uninstall_note_cms_sync_launchagent.sh",
+      "safety": "local-only orchestration; note posting remains manual; no VM deploy and no paid dependency required",
+      "healthcheck": "MAIN/tools/note_cms_healthcheck.py",
+      "health_fields": [
+        "health.status",
+        "health.checks",
+        "assignments.workload",
+        "recent_records[].role_progress",
+        "health.latest_sync_age_minutes",
+        "health.summary_line",
+        "assignments.workload[].pending_count",
+        "marketing_department.data_layer"
+      ],
+      "health_warn_threshold_minutes": 1440,
+      "focus_view_localstorage_keys": [
+        "note_cms_focus_agent_only",
+        "note_cms_focus_agent_id"
+      ],
+      "guide_localstorage_key": "note_cms_home_guide_collapsed",
+      "health_error_threshold_minutes": 4320,
+      "queue_shortcuts": [
+        "generate",
+        "check",
+        "x-post"
+      ],
+      "queue_highlight_label": "次に押す",
+      "home_health_sync_button": true,
+      "home_health_replace_sync_button": true,
+      "home_health_export_button": true,
+      "home_today_first_shortcut": true,
+      "home_today_first_generate_shortcut": true,
+      "home_today_template_select": true,
+      "google_replace_preview": true,
+      "queue_age_filters_minutes": [
+        0,
+        1440,
+        4320
+      ],
+      "queue_updated_at_visible": true,
+      "queue_stale_highlight_minutes": [
+        1440,
+        4320
+      ],
+      "home_stale_queue_metrics": true,
+      "manual": "MAIN/docs/NOTE_CMS_OPERATION_MANUAL.md",
+      "agent_default_reset": true
+    }
+  },
+  "systemd_rules": {
+    "single_source_of_truth": [
+      "MAIN/deploy/systemd/*.service",
+      "MAIN/deploy/systemd/*.timer",
+      "MAIN/tools/*.py"
+    ],
+    "installer": "MAIN/tools/install_systemd_services.sh",
+    "why_values_revert": "installer rerenders /etc/systemd/system units from templates; direct edits under /etc or temporary VM-only sed changes are overwritten on reinstall"
+  },
+  "known_incidents": [
+    {
+      "date_jst": "2026-03-12",
+      "component": "weekly_autotrain",
+      "symptom": "unrecognized arguments: --llm-mode",
+      "root_cause": "service used new flags but tools/weekly_auto_feedback.py remained old",
+      "fix": "copy new script into tools/, py_compile, daemon-reload, restart service"
+    },
+    {
+      "date_jst": "2026-03-12",
+      "component": "ollama",
+      "symptom": "HTTP 500 / timed out during generate",
+      "root_cause": "memory pressure with larger models on small VM",
+      "fix": [
+        "add 2GB swap",
+        "set OLLAMA_CONTEXT_LENGTH=512",
+        "set OLLAMA_KEEP_ALIVE=30s",
+        "use qwen2.5:0.5b",
+        "increase timeout to 180 sec"
+      ]
+    },
+    {
+      "date_jst": "2026-03-12",
+      "component": "drift_watch",
+      "symptom": "unrecognized arguments: --resume-require-consecutive-normal",
+      "root_cause": "service flags updated before script version",
+      "fix": "sync tools/market_drift_watch.py then reinstall systemd units"
+    },
+    {
+      "date_jst": "2026-03-19",
+      "component": "trade_notifier",
+      "symptom": "daily close report could be missed on always-on runner days",
+      "root_cause": "runner_alive stayed true so runner_off alone did not represent trading-session end",
+      "fix": [
+        "send on SKIP_OUT_OF_TIME",
+        "backfill once on day_rollover if previous day was unsent",
+        "store daily reflection json",
+        "enable safe auto-apply for ai_train_weekly_bad_hours and no_paper_hours only"
+      ]
+    },
+    {
+      "date_jst": "2026-03-29",
+      "component": "morning_start_check",
+      "symptom": "trade_enabled stayed OFF after previous-day daily loss auto-disable while drift stayed INSUFFICIENT",
+      "root_cause": "morning guard required drift=NORMAL and did not distinguish sample collection from drift-forced pause",
+      "fix": [
+        "persist auto-disable reason in trade_event_cursor",
+        "allow morning sample_collection re-enable when disable reason is previous-day daily_loss_breach",
+        "keep block when trade_paused_by_drift=true or safety/risk/streak gates are active",
+        "also allow low-sample recovery when remaining_samples<=4",
+        "allow deep recovery when remaining_samples<=6 by temporarily tightening daily_loss_limit_pct and streak_stop_*",
+        "persist risk restore baselines in state._drift_watch so drift watch can restore later"
+      ]
+    },
+    {
+      "date_jst": "2026-04-01",
+      "component": "bot lunch/news handling",
+      "symptom": "SELL position survived into lunch/news window, then reversed and finished as SL",
+      "root_cause": "entry guard only blocked active news windows and open positions were not proactively flattened before lunch/news",
+      "fix": [
+        "block new entries when a lunch/news block is within news_entry_block_ahead_min",
+        "close existing positions with PAPER_EXIT_PRENEWS within pre_news_exit_buffer_min",
+        "respect pre_news_exit_min_hold_min to avoid immediate churn after entry"
+      ]
+    },
+    {
+      "date_jst": "2026-04-03",
+      "component": "bot buy fast-MA filter",
+      "symptom": "2026-04-02 15:26 BUY passed with fast_ma_dist=0.1189% and reversed into SL",
+      "root_cause": "buy_fast_ma_distance_pct=0.10 allowed a near-fast-MA BUY that was still too early",
+      "fix": [
+        "raise buy_fast_ma_distance_pct from 0.10 to 0.12",
+        "keep SELL threshold unchanged at 0.10"
+      ]
+    },
+    {
+      "date_jst": "2026-04-03",
+      "component": "daily_reflection / weekly_llm",
+      "symptom": "0.5b summaries were often too terse despite stable fallback behavior",
+      "root_cause": "default model prioritized minimal footprint over low-frequency summary quality",
+      "fix": [
+        "promote qwen2.5:1.5b only for daily reflection",
+        "keep weekly feedback on qwen2.5:0.5b because 1.5b times out on the current VM",
+        "tighten both prompts with explicit numeric decision hints for small-model stability",
+        "use 240 sec for daily reflection and 180 sec for weekly feedback"
+      ]
+    },
+    {
+      "date_jst": "2026-04-04",
+      "component": "daily_goal_report / eod entry",
+      "symptom": "day_rollover daily report retried when notify target was disabled, and a 16:39 BUY entered just before forced EOD close",
+      "root_cause": "daily report tracked only effective delivery, and bot allowed new entries after EOD cutoff while still inside end_hour",
+      "fix": [
+        "add daily_goal_report_handled_day8 to stop duplicate day_rollover processing when no target is configured",
+        "block new entries during the EOD window with OBSERVE_TIME_BLOCK and eod_entry_window note"
+      ],
+      "live_confirmed_jst": "2026-04-04 04:41",
+      "live_confirmation": [
+        "trade_event_cursor.json now contains daily_goal_report_handled_day8=20260403",
+        "trade_event_cursor.json keeps daily_goal_report_sent_day8 empty when notify target is disabled",
+        "ouroboros-trade-notifier.service completed with sent=0 and no repeated 20260403 day_rollover report after the handled cursor was set"
+      ]
+    },
+    {
+      "date_jst": "2026-04-04",
+      "component": "shadow visibility",
+      "symptom": "shadow service was active but recent activity was easy to miss because main widget/report surfaces only main logs by default",
+      "root_cause": "shadow uses separate logs/instances/shadow and separate control/state files",
+      "fix": [
+        "confirm ouroboros-shadow.service active and run_shadow.log ticks continue",
+        "confirm shadow samples are already absorbed by ai_train_include_shadow=1 and ai_train_shadow_boost=0.70",
+        "add shadow_day to widget payload and daily goal report detail"
+      ]
+    },
+    {
+      "date_jst": "2026-04-04",
+      "component": "shadow stale runtime",
+      "symptom": "shadow kept entering after EOD cutoff at 16:06 / 16:21 / 16:31 even though bot.py had eod_entry_window blocking logic",
+      "root_cause": "ouroboros-shadow.service had been running since 2026-03-11 and had not reloaded the updated bot.py process image",
+      "fix": [
+        "restart ouroboros-shadow.service after bot.py / run.py changes",
+        "confirmed shadow restart at 2026-04-04 16:36 JST",
+        "confirmed live OBSERVE_TIME_BLOCK eod_entry_window logs at 16:41 / 16:46 / 16:51 / 16:56 / 17:01 / 17:06 JST after restart"
+      ]
+    },
+    {
+      "date_jst": "2026-04-04",
+      "component": "shadow timeout bias",
+      "symptom": "shadow 2026-04-04 closed trades were heavily timeout-driven (TIMEOUT 5 / EOD 4 / SL 1 / TP 1)",
+      "root_cause": "paper positions included both no-follow-through trades and trades that briefly moved in favor but reverted before TP, while timeout handling remained IGNORE",
+      "fix": [
+        "enable exit_technical_enabled=1 in CONTROL_shadow.csv",
+        "keep change shadow-only first to validate earlier reversal exits before touching main",
+        "surface shadow exit_tech counts in widget and daily goal report",
+        "highlight shadow tech-exit growth in the daily summary when exit_technical_n increases versus the previous day"
+      ]
+    }
+  ],
+  "last_observed_state": {
+    "drift_watch": {
+      "status": "INSUFFICIENT",
+      "recent_closed_n": 3,
+      "normal_streak": 0,
+      "resume_ready": false
+    },
+    "trade_runtime": {
+      "headline": "CANARY / trade ON / drift INSUFFICIENT",
+      "remaining_samples": 3,
+      "daily_loss_limit_pct": -0.3,
+      "streak_stop_enabled": true,
+      "streak_stop_max_losses": 2
+    },
+    "notifier_cursor": {
+      "daily_goal_report_handled_day8": "20260403",
+      "daily_goal_report_sent_day8": ""
+    },
+    "shadow_runner": {
+      "service_active": true,
+      "runner_log_ticks_observed_through_jst": "2026-04-04 04:41:23",
+      "recent_trade_days": [
+        "20260401",
+        "20260402",
+        "20260403",
+        "20260404"
+      ],
+      "recent_closed_counts": {
+        "20260401": 20,
+        "20260402": 20,
+        "20260403": 20,
+        "20260404_so_far": 3
+      },
+      "latest_widget_shadow_day": {
+        "day8": "20260404",
+        "closed_n": 3,
+        "win_rate_pct": 66.6667,
+        "pnl_jpy_sum": 5.054
+      }
+    },
+    "weekly_llm_feedback": {
+      "used": true,
+      "model": "qwen2.5:0.5b",
+      "reason": "ok_with_fallback"
+    },
+    "note": "This is based on latest operator logs in this thread, not guaranteed to be current now."
+  },
+  "next_chat_bootstrap": [
+    "Read MAIN/HANDOVER.md",
+    "Run systemctl cat for drift / weekly / notifier / widget services and verify ExecStart",
+    "Run timer + journal checks for drift/weekly/notifier/widget",
+    "Run state/control key checks and compare to expected gate values",
+    "If the task touches note CMS orchestration, read MAIN/.claude/skills/note-cms-orchestrator/SKILL.md.",
+    "Export latest note CMS context with: python3 MAIN/tools/note_cms_central_skill.py --stdout"
+  ],
+  "priority_backlog": [
+    "Add notifier event for automatic resume gate completion",
+    "Add schema-like state key validator for drift/weekly objects",
+    "Add daily PnL summary to widget payload when logs dir is available",
+    "Run MR in a dedicated observe-only instance and review OBSERVE_MR* note quality plus rank distribution before any PAPER promotion",
+    "Classify recent shadow SL samples into reversal-wrap vs profit-miss and promote only the fixes that survive shadow",
+    "After at least 3 trading days, decide whether phase/aiba/near_tp REPORT_ONLY rows should become hard shadow promotion gates",
+    "After enough max_adv samples accumulate, split reports into real MAE and legacy mae_proxy cohorts"
+  ]
+}

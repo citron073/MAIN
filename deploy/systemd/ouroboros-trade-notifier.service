@@ -1,0 +1,13 @@
+[Unit]
+Description=Ouroboros trade event notifier (oneshot)
+After=network-online.target ouroboros-bot.service
+Wants=network-online.target
+ConditionPathExists=/home/ubuntu/trading_bot/trading_bot/MAIN/tools/trade_event_notifier.py
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/ubuntu/trading_bot/trading_bot/MAIN/.venv/bin/python tools/trade_event_notifier.py
+

@@ -1,0 +1,9 @@
+[Unit]
+Description=Run IBKR Critic every Sunday JST 20:30 (= 11:30 UTC)
+
+[Timer]
+OnCalendar=Sun *-*-* 11:30:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

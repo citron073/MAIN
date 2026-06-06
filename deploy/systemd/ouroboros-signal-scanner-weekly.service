@@ -1,0 +1,14 @@
+[Unit]
+Description=Ouroboros signal scanner weekly — SIGNAL_ONLY candidate extraction (FX+Stocks)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /home/ubuntu/trading_bot/MAIN/signal_scanner_weekly.py
+ExecStartPost=/usr/bin/python3 /home/ubuntu/trading_bot/MAIN/signal_scanner_outcome.py --ntfy
+StandardOutput=append:/home/ubuntu/trading_bot/MAIN/review_out/signal_scanner_systemd.out.log
+StandardError=append:/home/ubuntu/trading_bot/MAIN/review_out/signal_scanner_systemd.err.log

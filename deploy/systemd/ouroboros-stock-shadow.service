@@ -1,0 +1,13 @@
+[Unit]
+Description=Ouroboros stock shadow paper trading (yfinance SMA/RSI signal)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /home/ubuntu/trading_bot/MAIN/stock_shadow_bot.py --symbols AAPL,MSFT,NVDA,TSLA,QQQ,SPY,AMZN,META,AMD --interval 1h --mtf-filter --both-sides
+StandardOutput=append:/home/ubuntu/trading_bot/MAIN/review_out/stock_shadow_systemd.out.log
+StandardError=append:/home/ubuntu/trading_bot/MAIN/review_out/stock_shadow_systemd.err.log

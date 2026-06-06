@@ -1,0 +1,12 @@
+[Unit]
+Description=Run stock shadow bot every 30 min during US market hours (JST 22-07)
+
+[Timer]
+# Run at :00 and :30 of each hour in US market window (JST 22:00-07:00)
+OnCalendar=*-*-* 22,23,00,01,02,03,04,05,06:00/30:00
+AccuracySec=60s
+Persistent=false
+Unit=ouroboros-stock-shadow.service
+
+[Install]
+WantedBy=timers.target

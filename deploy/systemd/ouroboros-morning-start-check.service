@@ -1,0 +1,12 @@
+[Unit]
+Description=Ouroboros morning safety check and auto start
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/ubuntu/trading_bot/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/etc/ouroboros/secrets.env
+ExecStart=/home/ubuntu/trading_bot/trading_bot/MAIN/.venv/bin/python tools/morning_start_guard.py --auto-enable-today-on --auto-enable-trade --start-bot-service --notify
+

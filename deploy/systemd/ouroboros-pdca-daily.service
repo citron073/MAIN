@@ -1,0 +1,14 @@
+[Unit]
+Description=Ouroboros PDCA daily autonomous evaluation
+After=network-online.target ouroboros-unified-dashboard.service
+Wants=network-online.target
+ConditionPathExists=/home/ubuntu/trading_bot/MAIN/tools/pdca_daily_update.py
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /home/ubuntu/trading_bot/MAIN/tools/pdca_daily_update.py
+StandardOutput=append:/home/ubuntu/trading_bot/MAIN/review_out/pdca_daily.systemd.out.log
+StandardError=append:/home/ubuntu/trading_bot/MAIN/review_out/pdca_daily.systemd.err.log

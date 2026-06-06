@@ -1,0 +1,12 @@
+[Unit]
+Description=Ouroboros weekly audit timer (Monday 02:00)
+Requires=ouroboros-audit-weekly.service
+
+[Timer]
+OnCalendar=Mon *-*-* 02:00:00
+Unit=ouroboros-audit-weekly.service
+Persistent=true
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

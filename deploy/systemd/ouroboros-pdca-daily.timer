@@ -1,0 +1,11 @@
+[Unit]
+Description=Ouroboros PDCA daily evaluation timer (21:00 JST)
+Requires=ouroboros-pdca-daily.service
+
+[Timer]
+# Run daily at 21:00 JST (VM timezone = JST, market closes 17:00 JST)
+OnCalendar=*-*-* 21:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

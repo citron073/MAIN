@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Ouroboros champion rollback guard daily
+
+[Timer]
+OnCalendar=*-*-* 00:40:00
+Unit=ouroboros-champion-rollback.service
+Persistent=true
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

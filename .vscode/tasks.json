@@ -1,0 +1,221 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "harness: validate fast",
+      "type": "shell",
+      "command": "./scripts/validate.sh fast",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: validate trade",
+      "type": "shell",
+      "command": "./scripts/validate.sh trade",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: all tests",
+      "type": "shell",
+      "command": "./scripts/validate.sh all-tests",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: extract failures",
+      "type": "shell",
+      "command": "./scripts/extract_failures.sh",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: show quality gate",
+      "type": "shell",
+      "command": "sed -n '1,260p' docs/ai_harness/ouroboros_quality_gate.md",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: quality gate",
+      "type": "shell",
+      "command": "python3 tools/harness_quality_check.py",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: quality gate draft",
+      "type": "shell",
+      "command": "python3 tools/harness_quality_check.py --allow-draft",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: work items",
+      "type": "shell",
+      "command": "python3 tools/harness_work_items.py --show-items",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: work items json",
+      "type": "shell",
+      "command": "python3 tools/harness_work_items.py --print-json",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: work item mark done",
+      "type": "shell",
+      "command": "python3 tools/harness_work_items.py --set-status ${input:workItemId} --status DONE",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: work item mark done force",
+      "type": "shell",
+      "command": "python3 tools/harness_work_items.py --set-status ${input:workItemId} --status DONE --force",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: work item history path",
+      "type": "shell",
+      "command": "python3 tools/harness_work_items.py --history-path",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: shadow promotion report",
+      "type": "shell",
+      "command": "python3 tools/shadow_promotion_report.py",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: effective config dump",
+      "type": "shell",
+      "command": "python3 tools/effective_config_dump.py",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: effective config dump vm snapshot",
+      "type": "shell",
+      "command": "python3 tools/effective_config_dump.py --snapshot-dir .local_llm/vm_snapshot/latest",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: trade system review",
+      "type": "shell",
+      "command": "python3 tools/trade_system_review.py --write",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: trade system review vm snapshot",
+      "type": "shell",
+      "command": "python3 tools/trade_system_review.py --snapshot-dir .local_llm/vm_snapshot/latest --write",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: llm reflection audit",
+      "type": "shell",
+      "command": "python3 tools/llm_reflection_audit.py",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: local llm vm sync",
+      "type": "shell",
+      "command": "./tools/sync_vm_llm_inputs.sh",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: local llm healthcheck",
+      "type": "shell",
+      "command": "python3 tools/local_llm_healthcheck.py",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: local llm review run",
+      "type": "shell",
+      "command": "./tools/run_local_llm_review.sh",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: local llm review",
+      "type": "shell",
+      "command": "python3 tools/local_llm_trade_review.py --snapshot-dir .local_llm/vm_snapshot/latest",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: local llm review no-llm",
+      "type": "shell",
+      "command": "python3 tools/local_llm_trade_review.py --snapshot-dir .local_llm/vm_snapshot/latest --llm-mode off",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: react frontend check",
+      "type": "shell",
+      "command": "python3 tools/react_frontend_harness_check.py --root action_reader/frontend",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: spec templates",
+      "type": "shell",
+      "command": "python3 tools/harness_spec_template.py --list",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: use spec widget",
+      "type": "shell",
+      "command": "python3 tools/harness_spec_template.py --use widget_ui --force",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: use spec trading",
+      "type": "shell",
+      "command": "python3 tools/harness_spec_template.py --use trading_logic --force",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: use spec llm reflection",
+      "type": "shell",
+      "command": "python3 tools/harness_spec_template.py --use llm_reflection --force",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: use spec local llm hybrid",
+      "type": "shell",
+      "command": "python3 tools/harness_spec_template.py --use local_llm_hybrid --force",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: use spec vm deploy",
+      "type": "shell",
+      "command": "python3 tools/harness_spec_template.py --use vm_deploy --force",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: use spec react vite",
+      "type": "shell",
+      "command": "python3 tools/harness_spec_template.py --use react_vite --force",
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: validate gated",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "harness: work items",
+        "harness: quality gate",
+        "harness: validate trade"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "harness: validate",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "harness: work items",
+        "harness: quality gate draft",
+        "harness: validate trade"
+      ],
+      "problemMatcher": []
+    }
+  ],
+  "inputs": [
+    {
+      "id": "workItemId",
+      "type": "promptString",
+      "description": "Work item id, for example HARNESS-003"
+    }
+  ]
+}

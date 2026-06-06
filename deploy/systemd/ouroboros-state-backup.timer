@@ -1,0 +1,12 @@
+[Unit]
+Description=Ouroboros daily state.json backup timer
+Requires=ouroboros-state-backup.service
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Unit=ouroboros-state-backup.service
+Persistent=true
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

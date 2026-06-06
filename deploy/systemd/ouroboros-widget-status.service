@@ -1,0 +1,20 @@
+[Unit]
+Description=Ouroboros widget status server
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/home/ubuntu/trading_bot/trading_bot/MAIN/tools/widget_status.py
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+Environment=WIDGET_STATUS_HOST=0.0.0.0
+Environment=WIDGET_STATUS_PORT=8787
+EnvironmentFile=-/etc/ouroboros/secrets.env
+ExecStart=/home/ubuntu/trading_bot/trading_bot/MAIN/tools/start_widget_status_server.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

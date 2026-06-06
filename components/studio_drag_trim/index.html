@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Studio Drag Trim</title>
+    <style>
+      :root {
+        --bg: #fffdf8;
+        --panel-border: #f3d9ae;
+        --track: #e2e8f0;
+        --track-soft: #f8fafc;
+        --bar-a: #2563eb;
+        --bar-b: #93c5fd;
+        --text: #16212f;
+        --muted: #64748b;
+        --accent: #d97706;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        font-family: "Avenir Next", "Hiragino Sans", "Yu Gothic", sans-serif;
+        background: transparent;
+        color: var(--text);
+      }
+      .board {
+        border-radius: 24px;
+        border: 1px solid var(--panel-border);
+        background: linear-gradient(135deg, #fff8ee 0%, #f7fbff 100%);
+        padding: 16px;
+      }
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .eyebrow {
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        color: var(--accent);
+        font-weight: 800;
+        text-transform: uppercase;
+      }
+      .title {
+        margin-top: 4px;
+        font-size: 20px;
+        font-weight: 800;
+      }
+      .sub {
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .list {
+        display: grid;
+        gap: 12px;
+        min-width: 100%;
+      }
+      .viewport {
+        margin-top: 14px;
+        overflow-x: auto;
+        padding-bottom: 6px;
+      }
+      .row {
+        border-radius: 18px;
+        border: 1px solid #dbeafe;
+        background: #ffffff;
+        padding: 12px 14px;
+        box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06);
+      }
+      .row.selected {
+        border: 2px solid #0f172a;
+        background: #fff7ed;
+      }
+      .row.off {
+        opacity: 0.46;
+      }
+      .row-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .badge-row {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .badge {
+        padding: 4px 9px;
+        border-radius: 999px;
+        font-size: 11px;
+        font-weight: 800;
+      }
+      .badge.seq {
+        background: #eff6ff;
+        color: #1d4ed8;
+      }
+      .badge.selected {
+        background: #0f172a;
+        color: #ffffff;
+      }
+      .badge.clip {
+        background: #f1f5f9;
+        color: #334155;
+      }
+      .label {
+        margin-top: 8px;
+        font-size: 14px;
+        font-weight: 800;
+      }
+      .summary {
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .track {
+        margin-top: 12px;
+        position: relative;
+        height: 28px;
+        border-radius: 999px;
+        border: 1px solid var(--track);
+        background: linear-gradient(90deg, #eef2ff 0%, var(--track-soft) 100%);
+        overflow: visible;
+      }
+      .bar {
+        position: absolute;
+        top: 3px;
+        bottom: 3px;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--bar-a) 0%, var(--bar-b) 100%);
+        min-width: 20px;
+        cursor: grab;
+        touch-action: none;
+      }
+      .bar.dragging {
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.18);
+        cursor: grabbing;
+      }
+      .handle {
+        position: absolute;
+        top: -4px;
+        width: 18px;
+        height: 26px;
+        border-radius: 12px;
+        background: #ffffff;
+        border: 2px solid #0f172a;
+        box-shadow: 0 6px 18px rgba(15, 23, 42, 0.18);
+        cursor: ew-resize;
+        touch-action: none;
+      }
+      .handle.start {
+        left: -9px;
+      }
+      .handle.end {
+        right: -9px;
+      }
+      .footer {
+        margin-top: 12px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="board">
+      <div class="header">
+        <div>
+          <div class="eyebrow">Trim Handles</div>
+          <div class="title">左右の端をドラッグして trim</div>
+        </div>
+        <div class="sub">端は trim、中央バーは長さを保ったまま左右へ移動できます</div>
+      </div>
+      <div class="viewport">
+        <div id="list" class="list"></div>
+      </div>
+      <div id="footer" class="footer"></div>
+    </div>
+    <script>
+      const API_VERSION = 1;
+      const MIN_DURATION = 0.1;
+      let currentRows = [];
+      let selectedRowId = "";
+      let totalDuration = 0.0;
+      let zoomPercent = 100;
+      let snapSec = 0.1;
+      let playheadSec = 0.0;
+      let markInSec = null;
+      let markOutSec = null;
+      let activeTrim = null;
+      let lastSent = "";
+
+      function sendMessage(type, data) {
+        window.parent.postMessage(
+          Object.assign(
+            {
+              isStreamlitMessage: true,
+              type,
+            },
+            data || {}
+          ),
+          "*"
+        );
+      }
+
+      function setComponentReady() {
+        sendMessage("streamlit:componentReady", { apiVersion: API_VERSION });
+      }
+
+      function setFrameHeight(height) {
+        sendMessage("streamlit:setFrameHeight", { height: height });
+      }
+
+      function setComponentValue(value) {
+        sendMessage("streamlit:setComponentValue", {
+          value,
+          dataType: "json",
+        });
+      }
+
+      function formatSeconds(value) {
+        const total = Math.max(0, Number(value) || 0);
+        const minutes = Math.floor(total / 60);
+        const seconds = total - minutes * 60;
+        return minutes > 0 ? `${minutes}:${seconds.toFixed(2).padStart(5, "0")}` : `${seconds.toFixed(2)}s`;
+      }
+
+      function durationOf(row) {
+        return Math.max(0, (Number(row.end_sec) || 0) - (Number(row.start_sec) || 0));
+      }
+
+      function summaryOf(row) {
+        const parts = [];
+        if (row.motion && row.motion !== "none") parts.push(String(row.motion));
+        if (row.text_overlay) parts.push(`Text: ${String(row.text_overlay).slice(0, 24)}`);
+        return parts.length ? parts.join(" / ") : "Trim only";
+      }
+
+      function effectiveTotal() {
+        const rowMax = currentRows.reduce((maxValue, row) => Math.max(maxValue, Number(row.end_sec) || 0), 0);
+        return Math.max(Number(totalDuration) || 0, rowMax, MIN_DURATION);
+      }
+
+      function normalizeSnap() {
+        const raw = Number(snapSec) || 0;
+        if (raw === 0.05 || raw === 0.1 || raw === 0.25) return raw;
+        return 0;
+      }
+
+      function clampRange(startSec, endSec) {
+        const total = effectiveTotal();
+        const snap = normalizeSnap();
+        let start = Math.max(0, Number(startSec) || 0);
+        let end = Math.max(start + MIN_DURATION, Number(endSec) || start + MIN_DURATION);
+        if (total <= MIN_DURATION) {
+          return [0, total];
+        }
+        start = Math.min(start, total - MIN_DURATION);
+        end = Math.min(Math.max(end, start + MIN_DURATION), total);
+        if (snap > 0) {
+          start = Math.round(start / snap) * snap;
+          end = Math.round(end / snap) * snap;
+          const step = Math.max(MIN_DURATION, snap);
+          end = Math.max(start + step, end);
+          start = Math.min(Math.max(0, start), total - MIN_DURATION);
+          end = Math.min(Math.max(end, start + MIN_DURATION), total);
+        }
+        if (end - start < MIN_DURATION) {
+          start = Math.max(0, end - MIN_DURATION);
+        }
+        return [Number(start.toFixed(3)), Number(end.toFixed(3))];
+      }
+
+      function shiftRange(startSec, endSec, deltaSec) {
+        const [safeStart, safeEnd] = clampRange(startSec, endSec);
+        const duration = Math.max(MIN_DURATION, safeEnd - safeStart);
+        const total = effectiveTotal();
+        const snap = normalizeSnap();
+        let nextStart = safeStart + (Number(deltaSec) || 0);
+        if (total <= duration) {
+          return [0, total];
+        }
+        if (snap > 0) {
+          nextStart = Math.round(nextStart / snap) * snap;
+        }
+        nextStart = Math.min(Math.max(0, nextStart), total - duration);
+        return clampRange(nextStart, nextStart + duration);
+      }
+
+      function clampPlayhead(nextValue) {
+        const total = effectiveTotal();
+        const safe = Math.max(0, Number(nextValue) || 0);
+        return Number(Math.min(safe, total).toFixed(3));
+      }
+
+      function payloadForStreamlit() {
+        return {
+          rows: currentRows.map((row) => ({
+            id: String(row.id || ""),
+            start_sec: Number((Number(row.start_sec) || 0).toFixed(3)),
+            end_sec: Number((Number(row.end_sec) || 0).toFixed(3)),
+          })),
+          playhead_sec: clampPlayhead(playheadSec),
+        };
+      }
+
+      function emitValueIfChanged() {
+        const payload = payloadForStreamlit();
+        const serialized = JSON.stringify(payload);
+        if (serialized === lastSent) return;
+        lastSent = serialized;
+        setComponentValue(payload);
+      }
+
+      function updatePlayhead(nextValue, shouldEmit = true) {
+        playheadSec = clampPlayhead(nextValue);
+        render();
+        if (shouldEmit) emitValueIfChanged();
+      }
+
+      function seekFromClientX(clientX, element) {
+        if (!element) return;
+        const rect = element.getBoundingClientRect();
+        if (!rect || rect.width <= 0) return;
+        const ratio = Math.max(0, Math.min(1, (Number(clientX || 0) - rect.left) / rect.width));
+        updatePlayhead(effectiveTotal() * ratio, true);
+      }
+
+      function appendMarkers(track, total) {
+        const safeMarkIn = markInSec == null ? null : clampPlayhead(markInSec);
+        const safeMarkOut = markOutSec == null ? null : clampPlayhead(markOutSec);
+        if (safeMarkIn != null && safeMarkOut != null && Math.abs(safeMarkOut - safeMarkIn) > 0.001) {
+          const range = document.createElement("div");
+          range.style.position = "absolute";
+          range.style.left = `${Math.min(safeMarkIn, safeMarkOut) / total * 100}%`;
+          range.style.width = `${Math.abs(safeMarkOut - safeMarkIn) / total * 100}%`;
+          range.style.top = "1px";
+          range.style.bottom = "1px";
+          range.style.borderRadius = "999px";
+          range.style.background = "rgba(16,185,129,0.14)";
+          range.style.border = "1px solid rgba(16,185,129,0.35)";
+          range.style.pointerEvents = "none";
+          track.appendChild(range);
+        }
+        if (safeMarkIn != null) {
+          const lineIn = document.createElement("div");
+          lineIn.style.position = "absolute";
+          lineIn.style.left = `${(safeMarkIn / total) * 100}%`;
+          lineIn.style.top = "-5px";
+          lineIn.style.bottom = "-5px";
+          lineIn.style.width = "2px";
+          lineIn.style.background = "#10b981";
+          lineIn.style.boxShadow = "0 0 0 2px rgba(16,185,129,0.14)";
+          lineIn.style.borderRadius = "999px";
+          lineIn.style.pointerEvents = "none";
+          track.appendChild(lineIn);
+        }
+        if (safeMarkOut != null) {
+          const lineOut = document.createElement("div");
+          lineOut.style.position = "absolute";
+          lineOut.style.left = `${(safeMarkOut / total) * 100}%`;
+          lineOut.style.top = "-5px";
+          lineOut.style.bottom = "-5px";
+          lineOut.style.width = "2px";
+          lineOut.style.background = "#f59e0b";
+          lineOut.style.boxShadow = "0 0 0 2px rgba(245,158,11,0.14)";
+          lineOut.style.borderRadius = "999px";
+          lineOut.style.pointerEvents = "none";
+          track.appendChild(lineOut);
+        }
+      }
+
+      function updateRowRange(rowId, nextStart, nextEnd) {
+        currentRows = currentRows.map((row) => {
+          if (String(row.id) !== String(rowId)) return row;
+          const [start, end] = clampRange(nextStart, nextEnd);
+          return Object.assign({}, row, { start_sec: start, end_sec: end });
+        });
+        render();
+      }
+
+      function startTrim(event, rowId, edge, trackWidth) {
+        event.preventDefault();
+        const row = currentRows.find((item) => String(item.id) === String(rowId));
+        if (!row) return;
+        activeTrim = {
+          rowId: String(rowId),
+          edge,
+          startX: Number(event.clientX || 0),
+          trackWidth: Math.max(48, Number(trackWidth) || 48),
+          startSec: Number(row.start_sec) || 0,
+          endSec: Number(row.end_sec) || 0,
+          total: effectiveTotal(),
+        };
+        window.addEventListener("pointermove", handlePointerMove);
+        window.addEventListener("pointerup", stopTrim);
+      }
+
+      function handlePointerMove(event) {
+        if (!activeTrim) return;
+        const deltaX = Number(event.clientX || 0) - activeTrim.startX;
+        const deltaSec = (deltaX / activeTrim.trackWidth) * activeTrim.total;
+        let nextStart = activeTrim.startSec;
+        let nextEnd = activeTrim.endSec;
+        if (activeTrim.edge === "move") {
+          [nextStart, nextEnd] = shiftRange(activeTrim.startSec, activeTrim.endSec, deltaSec);
+        } else if (activeTrim.edge === "start") {
+          nextStart = activeTrim.startSec + deltaSec;
+        } else {
+          nextEnd = activeTrim.endSec + deltaSec;
+        }
+        updateRowRange(activeTrim.rowId, nextStart, nextEnd);
+      }
+
+      function stopTrim() {
+        if (!activeTrim) return;
+        activeTrim = null;
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", stopTrim);
+        emitValueIfChanged();
+      }
+
+      function render() {
+        const list = document.getElementById("list");
+        const footer = document.getElementById("footer");
+        const total = effectiveTotal();
+        const safeZoom = Math.max(100, Math.min(400, Number(zoomPercent) || 100));
+        const safePlayhead = Math.min(Math.max(0, Number(playheadSec) || 0), total);
+        const playheadPct = Math.max(0, Math.min(100, (safePlayhead / total) * 100));
+        const rows = [...currentRows].sort((a, b) => {
+          return (Number(a.sequence) || 0) - (Number(b.sequence) || 0);
+        });
+        list.style.width = `max(100%, ${safeZoom}%)`;
+        list.innerHTML = "";
+        const headRail = document.createElement("div");
+        headRail.className = "track";
+        headRail.style.height = "16px";
+        headRail.style.marginBottom = "10px";
+        headRail.style.cursor = "pointer";
+        headRail.title = "クリックした位置へ再生ヘッドを移動";
+        const headRailLine = document.createElement("div");
+        headRailLine.style.position = "absolute";
+        headRailLine.style.left = `${playheadPct}%`;
+        headRailLine.style.top = "-5px";
+        headRailLine.style.bottom = "-5px";
+        headRailLine.style.width = "2px";
+        headRailLine.style.background = "#dc2626";
+        headRailLine.style.boxShadow = "0 0 0 2px rgba(220,38,38,0.12)";
+        headRailLine.style.borderRadius = "999px";
+        headRailLine.style.pointerEvents = "none";
+        appendMarkers(headRail, total);
+        headRail.appendChild(headRailLine);
+        headRail.addEventListener("click", (event) => {
+          if (activeTrim) return;
+          seekFromClientX(event.clientX, headRail);
+        });
+        list.appendChild(headRail);
+        rows.forEach((row, index) => {
+          const startPct = Math.max(0, Math.min(100, ((Number(row.start_sec) || 0) / total) * 100));
+          const widthPct = Math.max(2, Math.min(100 - startPct, (durationOf(row) / total) * 100));
+
+          const rowEl = document.createElement("div");
+          rowEl.className = "row";
+          if (String(row.id) === String(selectedRowId)) rowEl.classList.add("selected");
+          if (!row.use) rowEl.classList.add("off");
+          rowEl.innerHTML = `
+            <div class="row-top">
+              <div class="badge-row">
+                <span class="badge seq">OUT ${String(index + 1).padStart(2, "0")}</span>
+                <span class="badge ${String(row.id) === String(selectedRowId) ? "selected" : "clip"}">${String(row.id) === String(selectedRowId) ? "選択中" : "clip"}</span>
+              </div>
+              <div class="summary">${formatSeconds(row.start_sec)} → ${formatSeconds(row.end_sec)} / ${durationOf(row).toFixed(2)}s</div>
+            </div>
+            <div class="label">${String(row.label || row.id || "Clip")}</div>
+            <div class="summary">${summaryOf(row)}</div>
+          `;
+
+          const track = document.createElement("div");
+          track.className = "track";
+          track.title = "空きレーンをクリックすると再生ヘッドが移動します";
+          track.addEventListener("click", (event) => {
+            if (activeTrim) return;
+            if (event.target !== track) return;
+            seekFromClientX(event.clientX, track);
+          });
+          const playhead = document.createElement("div");
+          playhead.style.position = "absolute";
+          playhead.style.left = `${playheadPct}%`;
+          playhead.style.top = "-5px";
+          playhead.style.bottom = "-5px";
+          playhead.style.width = "2px";
+          playhead.style.background = "#dc2626";
+          playhead.style.boxShadow = "0 0 0 2px rgba(220,38,38,0.12)";
+          playhead.style.pointerEvents = "none";
+          playhead.style.borderRadius = "999px";
+          appendMarkers(track, total);
+          const bar = document.createElement("div");
+          bar.className = "bar";
+          if (activeTrim && String(activeTrim.rowId) === String(row.id)) bar.classList.add("dragging");
+          bar.style.left = `${startPct}%`;
+          bar.style.width = `${widthPct}%`;
+          bar.addEventListener("pointerdown", (event) => {
+            if (event.target && event.target.classList && event.target.classList.contains("handle")) return;
+            startTrim(event, row.id, "move", track.getBoundingClientRect().width);
+          });
+
+          const startHandle = document.createElement("div");
+          startHandle.className = "handle start";
+          startHandle.addEventListener("pointerdown", (event) => {
+            event.stopPropagation();
+            startTrim(event, row.id, "start", track.getBoundingClientRect().width);
+          });
+
+          const endHandle = document.createElement("div");
+          endHandle.className = "handle end";
+          endHandle.addEventListener("pointerdown", (event) => {
+            event.stopPropagation();
+            startTrim(event, row.id, "end", track.getBoundingClientRect().width);
+          });
+
+          bar.appendChild(startHandle);
+          bar.appendChild(endHandle);
+          track.appendChild(playhead);
+          track.appendChild(bar);
+          rowEl.appendChild(track);
+          list.appendChild(rowEl);
+        });
+
+        const snapLabel = normalizeSnap() > 0 ? `${normalizeSnap().toFixed(2)}s` : "OFF";
+        footer.textContent = `${rows.length} clips / head ${formatSeconds(safePlayhead)} / zoom ${safeZoom}% / snap ${snapLabel} / 上のレールや空きレーンをクリックすると再生ヘッドを移動できます / 端は trim、中央バーは位置移動として Motion Studio のタイムラインへ反映します`;
+        window.requestAnimationFrame(() => {
+          const height = document.documentElement.scrollHeight || document.body.scrollHeight || 480;
+          setFrameHeight(height);
+        });
+      }
+
+      window.addEventListener("message", (event) => {
+        const message = event.data || {};
+        if (message.type !== "streamlit:render") return;
+        const args = message.args || {};
+        currentRows = Array.isArray(args.rows) ? args.rows : [];
+        totalDuration = Number(args.totalDuration) || 0.0;
+        zoomPercent = Number(args.zoomPercent) || 100;
+        snapSec = Number(args.snapSec) || 0.0;
+        playheadSec = Number(args.playheadSec) || 0.0;
+        markInSec = args.markInSec == null ? null : Number(args.markInSec);
+        markOutSec = args.markOutSec == null ? null : Number(args.markOutSec);
+        selectedRowId = String(args.selectedRowId || "");
+        const defaultValue = Array.isArray(args.default) ? args.default : [];
+        if (defaultValue && typeof defaultValue === "object") {
+          lastSent = JSON.stringify(defaultValue);
+        } else {
+          lastSent = JSON.stringify({ rows: [], playhead_sec: 0.0 });
+        }
+        render();
+      });
+
+      window.addEventListener("load", () => {
+        setComponentReady();
+        render();
+      });
+    </script>
+  </body>
+</html>

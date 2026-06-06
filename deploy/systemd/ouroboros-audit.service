@@ -1,0 +1,14 @@
+[Unit]
+Description=Ouroboros daily log integrity audit and state repair
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/home/ubuntu/trading_bot/MAIN/audit.py
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/ubuntu/trading_bot/MAIN/tools/run_audit_today.sh
+StandardOutput=journal
+StandardError=journal

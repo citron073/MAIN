@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtualenv
+.venv/
+venv/
+
+# Backups
+*.bak
+*.bak.*
+*.bak_*
+*.backup
+*.broken_*
+*.error_*
+*~ 
+
+# Logs
+*.log
+nohup.out
+run.log
+.harness/
+.local_llm/
+
+# Generated outputs (bot artifacts)
+audit_out/
+daily_report_out/
+paper_out/
+logs/
+output/
+review_out/
+ai_training_log.csv
+
+# Local temporary/test files
+CONTROL.csv.bak_*
+CONTROL.test.csv
+CONTROL.test.csv.bak_*
+spec_check.py.bak_*
+dashboard_spec_restore.patch
+.streamlit/
+com.ouroboros.ci.plist
+
+# Local state / control snapshots (keep only if you intentionally want them versioned)
+state.json
+CONTROL.csv
+ai_model.json
+
+# Misc
+.DS_Store
+
+# ── クリーンmain化 2026-06-06: 別アプリ・大容量生成物・運用出力を追跡停止 ──
+# 動画編集アプリ yt_tool 関連(トレードボット無関係・GB級バイナリ)
+*yt_tool*
+.yt_tool*
+dist/yt_auto_editor*
+# 大容量メディア
+*.mp4
+*.mov
+*.mkv
+# 別アプリ(独立リポジトリで管理すべき)
+action_reader/
+kyushu_shoji_site*
+*note_cms*
+*editor_beta*
+icon_backups/
+# 税務・機密(領域5)
+tax_report/
+# 運用出力・生成データ(日次レポート/ローカルAI生成物)
+reports/
+weekly_report_out/
+daily_report_out/
+local_ai/
+backups/
+widget_native_ios/build/

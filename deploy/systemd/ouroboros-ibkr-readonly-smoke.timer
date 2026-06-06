@@ -1,0 +1,11 @@
+[Unit]
+Description=Ouroboros IBKR read-only smoke timer
+Requires=ouroboros-ibkr-readonly-smoke.service
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

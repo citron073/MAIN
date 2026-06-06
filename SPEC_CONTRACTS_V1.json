@@ -1,0 +1,263 @@
+{
+  "version": "v1",
+  "control_csv": {
+    "required_columns": [
+      "key",
+      "value"
+    ]
+  },
+  "trade_log_csv": {
+    "required_columns": [
+      "time",
+      "result",
+      "ltp",
+      "best_bid",
+      "best_ask",
+      "spread_pct",
+      "limit_pct",
+      "trend",
+      "signal",
+      "note",
+      "pos_id"
+    ]
+  },
+  "daily_report_json": {
+    "required_top_keys": [
+      "meta",
+      "daily",
+      "by_result",
+      "by_side",
+      "by_hour",
+      "trends",
+      "signals",
+      "spread",
+      "exit_integrity",
+      "mae_mfe"
+    ],
+    "meta_required_keys": [
+      "spec",
+      "generated_at_jst",
+      "target_day8",
+      "log_path",
+      "rows_total",
+      "rows_used",
+      "rows_dropped",
+      "notes"
+    ],
+    "daily_required_keys": [
+      "paper_n",
+      "observe_n",
+      "skip_n",
+      "hold_n",
+      "exit_n",
+      "error_n",
+      "paper_rate_pct",
+      "exit_tp_n",
+      "exit_sl_n",
+      "exit_timeout_n",
+      "exit_partial_tp_n",
+      "exit_eod_n",
+      "spread_over_limit_n",
+      "spread_over_limit_pct"
+    ],
+    "by_side_required_sides": [
+      "BUY",
+      "SELL",
+      "UNKNOWN"
+    ],
+    "by_side_required_keys": [
+      "paper_n",
+      "exit_n",
+      "paper_rate_pct",
+      "tp_n",
+      "sl_n",
+      "timeout_n",
+      "eod_n",
+      "partial_tp_n"
+    ],
+    "by_hour_required_hour_keys": [
+      "paper_n",
+      "observe_n",
+      "paper_rate_pct",
+      "spread_avg_pct",
+      "exit_n",
+      "tp_n",
+      "sl_n",
+      "timeout_n",
+      "eod_n",
+      "partial_tp_n"
+    ],
+    "by_hour_hours": [
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12",
+      "13",
+      "14",
+      "15",
+      "16",
+      "17",
+      "18",
+      "19",
+      "20",
+      "21",
+      "22",
+      "23"
+    ]
+  },
+  "weekly_report_json": {
+    "required_top_keys": [
+      "meta",
+      "range",
+      "weekly",
+      "by_day",
+      "by_side",
+      "by_hour",
+      "weekly_review",
+      "ai_feedback",
+      "weekly_exit_integrity",
+      "issues"
+    ],
+    "meta_required_keys": [
+      "spec",
+      "generated_at_jst",
+      "source",
+      "tool",
+      "version"
+    ],
+    "range_required_keys": [
+      "start8",
+      "end8",
+      "days"
+    ],
+    "weekly_required_keys": [
+      "rows_total",
+      "rows_used",
+      "day_count",
+      "paper_n",
+      "exit_n",
+      "observe_n",
+      "skip_n",
+      "hold_n",
+      "error_n",
+      "paper_rate_pct",
+      "exit_rate_pct",
+      "spread_avg_pct",
+      "spread_p90_pct",
+      "spread_max_pct",
+      "spread_over_limit_n"
+    ],
+    "weekly_review_required_keys": [
+      "closed_n",
+      "win_n",
+      "loss_n",
+      "win_rate_pct",
+      "ret_sum_pct",
+      "avg_ret_pct",
+      "gross_profit_pct",
+      "gross_loss_pct",
+      "profit_factor",
+      "avg_hold_min",
+      "exit_reason_breakdown",
+      "by_weekday",
+      "by_hour"
+    ],
+    "ai_feedback_required_keys": [
+      "min_hour_samples",
+      "good_hours",
+      "bad_hours",
+      "good_hours_reason",
+      "bad_hours_reason",
+      "suggested_control_updates",
+      "summary"
+    ],
+    "by_side_required_sides": [
+      "BUY",
+      "SELL",
+      "UNKNOWN"
+    ],
+    "by_hour_hours": [
+      "0",
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12",
+      "13",
+      "14",
+      "15",
+      "16",
+      "17",
+      "18",
+      "19",
+      "20",
+      "21",
+      "22",
+      "23"
+    ],
+    "weekly_exit_integrity_required_keys": [
+      "paper_pos_ids",
+      "exit_pos_ids",
+      "missing_exit_pos_ids",
+      "exit_without_paper_pos_ids"
+    ],
+    "issue_required_keys": [
+      "code",
+      "severity",
+      "message",
+      "context"
+    ],
+    "severity_allowed": [
+      "INFO",
+      "WARN",
+      "ERROR",
+      "FATAL"
+    ]
+  },
+  "audit_json": {
+    "required_top_keys": [
+      "generated_at",
+      "days",
+      "summary",
+      "issues",
+      "fix_state_applied"
+    ],
+    "summary_required_keys": [
+      "rows",
+      "result_counts",
+      "pos_id_count",
+      "paper_pos_n",
+      "exit_pos_n",
+      "paper_without_exit_n",
+      "exit_without_paper_n"
+    ],
+    "issue_required_keys": [
+      "code",
+      "severity",
+      "message",
+      "context"
+    ],
+    "severity_allowed": [
+      "INFO",
+      "WARN",
+      "ERROR",
+      "FATAL"
+    ]
+  }
+}

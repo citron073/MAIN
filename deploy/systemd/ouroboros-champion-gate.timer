@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Ouroboros champion-challenger promote gate daily
+
+[Timer]
+OnCalendar=*-*-* 00:25:00
+Unit=ouroboros-champion-gate.service
+Persistent=true
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

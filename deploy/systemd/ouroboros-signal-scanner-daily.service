@@ -1,0 +1,14 @@
+[Unit]
+Description=Ouroboros signal scanner daily — SIGNAL_ONLY weekday refresh
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /home/ubuntu/trading_bot/MAIN/signal_scanner_weekly.py --dry-run
+ExecStartPost=/usr/bin/python3 /home/ubuntu/trading_bot/MAIN/signal_scanner_outcome.py
+StandardOutput=append:/home/ubuntu/trading_bot/MAIN/review_out/signal_scanner_daily_systemd.out.log
+StandardError=append:/home/ubuntu/trading_bot/MAIN/review_out/signal_scanner_daily_systemd.err.log

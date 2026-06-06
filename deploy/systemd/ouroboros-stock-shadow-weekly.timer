@@ -1,0 +1,12 @@
+[Unit]
+Description=Run stock shadow weekly report every Sunday JST 08:00
+
+[Timer]
+# Sunday 08:00 JST = Sunday 23:00 UTC (previous day)
+OnCalendar=Sun *-*-* 23:00:00
+AccuracySec=300s
+Persistent=true
+Unit=ouroboros-stock-shadow-weekly.service
+
+[Install]
+WantedBy=timers.target

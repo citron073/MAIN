@@ -1,0 +1,17 @@
+[Unit]
+Description=Ouroboros IBKR read-only smoke via VM IB Gateway
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/home/ubuntu/trading_bot/MAIN/test_ibkr_connection.py
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+Environment=IBKR_HOST=127.0.0.1
+Environment=IBKR_PORT=7496
+Environment=IBKR_CLIENT_ID=11
+ExecStart=/usr/bin/python3 /home/ubuntu/trading_bot/MAIN/test_ibkr_connection.py --host 127.0.0.1 --port 7496 --client-id 11 --skip-client-id-diagnostics --stocks AAPL,MSFT,NVDA,TSLA,QQQ,SPY --fx USDJPY
+StandardOutput=append:/home/ubuntu/trading_bot/MAIN/review_out/ibkr_readonly_smoke.systemd.out.log
+StandardError=append:/home/ubuntu/trading_bot/MAIN/review_out/ibkr_readonly_smoke.systemd.err.log

@@ -1,0 +1,40 @@
+{
+  "version": "2026.05.12.1",
+  "generated_at": "2026-06-03T15:40:56",
+  "week_start": "20260525",
+  "week_end": "20260531",
+  "mode": "LIVE",
+  "score": 75,
+  "last_score": null,
+  "score_delta": 0,
+  "analysis": {
+    "total_entries": 21,
+    "total_exits": 21,
+    "tp_count": 4,
+    "sl_count": 9,
+    "timeout_count": 8,
+    "vix_block_count": 0,
+    "win_rate": 19.0,
+    "timeout_rate": 38.1,
+    "estimated_pnl_usd": -5.37,
+    "entries_per_day": 4.2,
+    "is_live": true,
+    "trading_days": 5
+  },
+  "deductions": [
+    "-15: WR 19.0% < ブレークイーブン(33.3%)-5pt",
+    "-10: 推定PnL $-5.37（マイナス週）"
+  ],
+  "proposals": [
+    {
+      "param": "ibkr_sl_pct",
+      "old": -0.5,
+      "new": -0.45,
+      "reason": "WR19.0%: SLを少し緩めてノイズキャッチを減らす"
+    }
+  ],
+  "applied": [
+    "[DRY-RUN] ibkr_sl_pct: -0.5 → -0.45 (WR19.0%: SLを少し緩めてノイズキャッチを減らす)"
+  ],
+  "dry_run": true
+}

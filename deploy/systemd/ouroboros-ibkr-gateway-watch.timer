@@ -1,0 +1,11 @@
+[Unit]
+Description=Ouroboros IB Gateway watchdog timer for VM dashboard
+Requires=ouroboros-ibkr-gateway-watch.service
+
+[Timer]
+OnBootSec=4min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

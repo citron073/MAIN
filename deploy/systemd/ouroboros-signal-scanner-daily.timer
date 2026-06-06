@@ -1,0 +1,12 @@
+[Unit]
+Description=Run signal scanner every weekday JST 09:05
+
+[Timer]
+# Weekdays 09:05 JST (VM timezone = JST)
+OnCalendar=Mon..Fri *-*-* 09:05:00
+AccuracySec=300s
+Persistent=true
+Unit=ouroboros-signal-scanner-daily.service
+
+[Install]
+WantedBy=timers.target

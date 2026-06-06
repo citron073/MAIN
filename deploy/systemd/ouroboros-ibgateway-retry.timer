@@ -1,0 +1,11 @@
+[Unit]
+Description=Retry IB Gateway login/API startup every 3 hours when needed
+Requires=ouroboros-ibgateway-retry.service
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=3h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

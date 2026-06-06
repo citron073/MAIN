@@ -1,0 +1,12 @@
+[Unit]
+Description=Ouroboros market drift watch (oneshot)
+After=network-online.target ouroboros-bot.service
+Wants=network-online.target
+ConditionPathExists=/home/ubuntu/trading_bot/trading_bot/MAIN/tools/market_drift_watch.py
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/ubuntu/trading_bot/trading_bot/MAIN/.venv/bin/python tools/market_drift_watch.py --recent-days 3 --baseline-days 14 --min-recent-closed 6 --min-baseline-closed 25 --pf-drop-th 0.15 --avg-ret-drop-th 0.02 --win-rate-drop-th 6 --apply-train-freeze --auto-unfreeze --apply-trade-pause --auto-resume-trade --apply-hour-block --auto-unblock-hours --hour-block-max-hours 8 --hour-block-avg-ret-th 0.00 --hour-block-win-rate-th 45 --apply-risk-tighten --auto-restore-risk --risk-alert-daily-loss-limit-pct -0.30 --risk-alert-streak-max-losses 2 --resume-require-consecutive-normal 4 --resume-canary-runs 2 --insufficient-auto-relax-hours --insufficient-relax-after-runs 4 --insufficient-relax-drop-hours 1 --insufficient-relax-max-applies 2 --backup-dir backups/drift_watch --backup-max-keep 50 --lock-file /tmp/ouroboros-drift-watch.lock

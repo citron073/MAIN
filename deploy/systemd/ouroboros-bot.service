@@ -1,0 +1,19 @@
+[Unit]
+Description=Ouroboros trading bot runner
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/etc/ouroboros/secrets.env
+ExecStart=/home/ubuntu/trading_bot/trading_bot/MAIN/.venv/bin/python run.py --interval 300
+StandardOutput=append:/home/ubuntu/trading_bot/trading_bot/MAIN/run.log
+StandardError=append:/home/ubuntu/trading_bot/trading_bot/MAIN/run.log
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

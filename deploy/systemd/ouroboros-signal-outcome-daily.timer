@@ -1,0 +1,11 @@
+[Unit]
+Description=Ouroboros signal outcome daily check timer
+Requires=ouroboros-signal-outcome-daily.service
+
+[Timer]
+# Run daily at 09:00 JST (VM timezone = JST)
+OnCalendar=*-*-* 09:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,15 @@
+[Unit]
+Description=Ouroboros stock shadow weekly summary report
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre=/usr/bin/python3 /home/ubuntu/trading_bot/MAIN/stock_shadow_bot.py --backtest --backtest-days 60 --both-sides
+ExecStartPre=/usr/bin/python3 /home/ubuntu/trading_bot/MAIN/stock_ml_train.py
+ExecStart=/usr/bin/python3 /home/ubuntu/trading_bot/MAIN/stock_shadow_weekly.py --days 7
+StandardOutput=append:/home/ubuntu/trading_bot/MAIN/review_out/stock_shadow_weekly_systemd.out.log
+StandardError=append:/home/ubuntu/trading_bot/MAIN/review_out/stock_shadow_weekly_systemd.err.log

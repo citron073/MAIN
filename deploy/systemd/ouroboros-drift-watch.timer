@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Ouroboros market drift watch every 30 minutes
+
+[Timer]
+OnCalendar=*-*-* *:00,30:00
+Unit=ouroboros-drift-watch.service
+Persistent=true
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

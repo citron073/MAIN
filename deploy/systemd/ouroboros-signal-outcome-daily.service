@@ -1,0 +1,13 @@
+[Unit]
+Description=Ouroboros signal scanner outcome check — daily accuracy tracking
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /home/ubuntu/trading_bot/MAIN/signal_scanner_outcome.py --ntfy
+StandardOutput=append:/home/ubuntu/trading_bot/MAIN/review_out/signal_outcome_systemd.out.log
+StandardError=append:/home/ubuntu/trading_bot/MAIN/review_out/signal_outcome_systemd.err.log

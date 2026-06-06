@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Ouroboros daily AI auto-train trigger reset
+
+[Timer]
+OnCalendar=*-*-* 00:10:00
+Unit=ouroboros-daily-autotrain.service
+Persistent=true
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

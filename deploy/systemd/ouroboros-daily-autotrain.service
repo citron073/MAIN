@@ -1,0 +1,12 @@
+[Unit]
+Description=Ouroboros daily AI auto-train trigger reset (oneshot)
+After=network-online.target ouroboros-bot.service
+Wants=network-online.target
+ConditionPathExists=/home/ubuntu/trading_bot/trading_bot/MAIN/tools/daily_auto_train_reset.py
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/ubuntu/trading_bot/trading_bot/MAIN/.venv/bin/python tools/daily_auto_train_reset.py --state-path state.json --control-path CONTROL.csv

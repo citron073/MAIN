@@ -1,0 +1,17 @@
+[Unit]
+Description=Ouroboros IB Gateway safe retry guard
+After=network-online.target ouroboros-xvfb.service
+Wants=network-online.target
+ConditionPathExists=/home/ubuntu/trading_bot/MAIN/tools/ibkr_gateway_retry.sh
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/MAIN
+Environment=MAIN_DIR=/home/ubuntu/trading_bot/MAIN
+Environment=IBG_UNIT=ouroboros-ibgateway.service
+Environment="IBKR_API_PORTS=7496 7497"
+Environment=MIN_ACTIVE_MINUTES=25
+ExecStart=/bin/bash /home/ubuntu/trading_bot/MAIN/tools/ibkr_gateway_retry.sh
+StandardOutput=append:/home/ubuntu/trading_bot/MAIN/review_out/ibkr_gateway_retry.systemd.out.log
+StandardError=append:/home/ubuntu/trading_bot/MAIN/review_out/ibkr_gateway_retry.systemd.err.log

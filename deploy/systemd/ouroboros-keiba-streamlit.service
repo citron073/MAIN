@@ -1,0 +1,20 @@
+[Unit]
+Description=Ouroboros KEIBA Streamlit app
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/home/ubuntu/trading_bot/KEIBA/app.py
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/KEIBA
+Environment=PYTHONUNBUFFERED=1
+Environment=PATH=/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/usr/bin/python3 -m streamlit run /home/ubuntu/trading_bot/KEIBA/app.py --server.port 8511 --server.address 0.0.0.0 --server.headless true --server.runOnSave false --server.fileWatcherType none --browser.gatherUsageStats false
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/ubuntu/trading_bot/KEIBA/ci_logs/keiba_streamlit.systemd.out.log
+StandardError=append:/home/ubuntu/trading_bot/KEIBA/ci_logs/keiba_streamlit.systemd.err.log
+
+[Install]
+WantedBy=multi-user.target

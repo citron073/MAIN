@@ -1,0 +1,15 @@
+[Unit]
+Description=Ouroboros weekly report + AI auto feedback (oneshot)
+After=network-online.target ouroboros-bot.service
+Wants=network-online.target
+ConditionPathExists=/home/ubuntu/trading_bot/MAIN/tools/weekly_auto_feedback.py
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+ExecStartPre=/home/ubuntu/trading_bot/MAIN/.venv/bin/python tools/state_schema_check.py
+ExecStart=/home/ubuntu/trading_bot/MAIN/.venv/bin/python tools/weekly_auto_feedback.py --mode previous-week --apply-control --reset-auto-train-day --llm-mode auto --ollama-model qwen2.5:0.5b --ollama-timeout-sec 180
+ExecStartPost=/home/ubuntu/trading_bot/MAIN/.venv/bin/python tools/send_weekly_summary_ntfy.py
+ExecStartPost=/home/ubuntu/trading_bot/MAIN/.venv/bin/python tools/stock_shadow_wr_update.py

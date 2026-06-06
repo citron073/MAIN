@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "updated_at": "2026-04-30",
+  "items": [
+    {
+      "id": "HARNESS-001",
+      "title": "Symphony-style local work item ledger",
+      "status": "HUMAN_REVIEW",
+      "objective": "Adopt the safe parts of Symphony by tracking work as validated work items without automatic VM or main-live actions.",
+      "allowed_files": [
+        "docs/ai_harness/WORKFLOW.md",
+        "docs/ai_harness/work_items.json",
+        "tools/harness_work_items.py",
+        "tests/test_harness_work_items_unittest.py",
+        "scripts/validate.sh",
+        ".vscode/tasks.json",
+        "docs/ai_harness/README.md",
+        "docs/ai_harness/ouroboros_quality_gate.md",
+        "COMMANDS.md"
+      ],
+      "runtime_impact": "local-only",
+      "safety_gate": "report-only",
+      "validation": "fast",
+      "blocked_by": [],
+      "proof": "python3 tools/harness_work_items.py --show-items and ./scripts/validate.sh fast",
+      "rollback": "revert the harness workflow, ledger, checker, test, task, and docs changes"
+    },
+    {
+      "id": "TRADE-LOGIC-001",
+      "title": "MR PAPER follow-up report after samples appear",
+      "status": "BACKLOG",
+      "objective": "When MR PAPER entries exist, summarize TP/SL/TIMEOUT by rank and trigger quality before any promotion decision.",
+      "allowed_files": [
+        "tools/mr_observe_summary.py",
+        "tests/test_mr_observe_summary_unittest.py",
+        "docs/OUROBOROS_TRADING_SPEC_TABLE.md"
+      ],
+      "runtime_impact": "report-only",
+      "safety_gate": "report-only",
+      "validation": "trade",
+      "blocked_by": [],
+      "proof": "MR PAPER summary with nonzero sample counts and trade validation",
+      "rollback": "revert report-only summary changes"
+    },
+    {
+      "id": "HARNESS-002",
+      "title": "Register current_spec as work item",
+      "status": "HUMAN_REVIEW",
+      "objective": "Add a safe command that can turn docs/ai_harness/current_spec.md into a tracked work item without touching VM or main-live behavior.",
+      "allowed_files": [
+        "tools/harness_work_items.py",
+        "tests/test_harness_work_items_unittest.py",
+        "docs/ai_harness/work_items.json",
+        "docs/ai_harness/README.md",
+        "COMMANDS.md"
+      ],
+      "runtime_impact": "local-only",
+      "safety_gate": "report-only",
+      "validation": "fast",
+      "blocked_by": [],
+      "proof": "python3 tools/harness_work_items.py --show-items and ./scripts/validate.sh fast",
+      "rollback": "revert the add-from-spec command and related docs/tests"
+    },
+    {
+      "id": "TRADE-LOGIC-002",
+      "title": "Pattern candidate suppression decision",
+      "status": "BLOCKED",
+      "objective": "Decide whether pattern_stage=CANDIDATE should be suppressed after enough samples are collected.",
+      "allowed_files": [
+        "tools/trade_system_review.py",
+        "bot.py",
+        "tests/test_trade_system_review_unittest.py",
+        "tests/test_live_logic_unittest.py"
+      ],
+      "runtime_impact": "shadow-only",
+      "safety_gate": "shadow",
+      "validation": "trade",
+      "blocked_by": [
+        "TRADE-LOGIC-001"
+      ],
+      "proof": "feature-level report with n>=20 and shadow-only validation",
+      "rollback": "disable the shadow-only filter flag"
+    },
+    {
+      "id": "HARNESS-003",
+      "title": "AI harness index page and status update command",
+      "status": "HUMAN_REVIEW",
+      "objective": "Add a local index page for the AI harness docs and a safe command to update work item status without editing JSON by hand.",
+      "allowed_files": [
+        "docs/ai_harness/index.html",
+        "docs/ai_harness/work_items.json",
+        "tools/harness_work_items.py",
+        "tests/test_harness_work_items_unittest.py",
+        "docs/ai_harness/README.md",
+        "COMMANDS.md"
+      ],
+      "runtime_impact": "local-only",
+      "safety_gate": "report-only",
+      "validation": "fast",
+      "blocked_by": [],
+      "proof": "python3 tools/harness_work_items.py --show-items and ./scripts/validate.sh fast",
+      "rollback": "revert the index page and status update command changes"
+    }
+  ]
+}

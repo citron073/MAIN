@@ -1,0 +1,17 @@
+[Unit]
+Description=Ouroboros ngrok tunnel for dashboard
+After=network-online.target ouroboros-dashboard.service
+Wants=network-online.target ouroboros-dashboard.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+Environment=AUTO_UPDATE_REDIRECT=1
+ExecStart=/home/ubuntu/trading_bot/trading_bot/MAIN/tools/dashboard_ngrok_wrapper.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,21 @@
+[Unit]
+Description=Ouroboros KEIBA status API for unified dashboard
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/home/ubuntu/trading_bot/KEIBA/keiba_status_server.py
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/KEIBA
+Environment=PYTHONUNBUFFERED=1
+Environment=KEIBA_STATUS_HOST=0.0.0.0
+Environment=KEIBA_ACTIONS_DISABLED=1
+ExecStart=/usr/bin/python3 /home/ubuntu/trading_bot/KEIBA/keiba_status_server.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/ubuntu/trading_bot/KEIBA/ci_logs/keiba_status_server.systemd.out.log
+StandardError=append:/home/ubuntu/trading_bot/KEIBA/ci_logs/keiba_status_server.systemd.err.log
+
+[Install]
+WantedBy=multi-user.target

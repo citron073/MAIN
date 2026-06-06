@@ -1,0 +1,308 @@
+{
+  "schema_version": "release_gate_index_v1",
+  "generated_at": "2026-05-16T21:32:31",
+  "sources": [
+    {
+      "priority": 0,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.75_release_gate.json",
+      "mtime_ns": 1776061877412876110,
+      "size_bytes": 3322
+    },
+    {
+      "priority": 0,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.76_release_gate.json",
+      "mtime_ns": 1778902283785653061,
+      "size_bytes": 3429
+    },
+    {
+      "priority": 0,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.77_release_gate.json",
+      "mtime_ns": 1778914952777010029,
+      "size_bytes": 3429
+    },
+    {
+      "priority": 0,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.78_release_gate.json",
+      "mtime_ns": 1778915106190300084,
+      "size_bytes": 3429
+    },
+    {
+      "priority": 0,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.79_release_gate.json",
+      "mtime_ns": 1778915884906683926,
+      "size_bytes": 3429
+    },
+    {
+      "priority": 0,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.80_release_gate.json",
+      "mtime_ns": 1778917451141962388,
+      "size_bytes": 3429
+    },
+    {
+      "priority": 0,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.81_release_gate.json",
+      "mtime_ns": 1778919933597024254,
+      "size_bytes": 3429
+    },
+    {
+      "priority": 0,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.82_release_gate.json",
+      "mtime_ns": 1778920644199614281,
+      "size_bytes": 3429
+    },
+    {
+      "priority": 0,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.83_release_gate.json",
+      "mtime_ns": 1778923622150352150,
+      "size_bytes": 3429
+    },
+    {
+      "priority": 0,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.84_release_gate.json",
+      "mtime_ns": 1778926191516847220,
+      "size_bytes": 3429
+    },
+    {
+      "priority": 0,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.85_release_gate.json",
+      "mtime_ns": 1778931052468141118,
+      "size_bytes": 3429
+    },
+    {
+      "priority": 0,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.86_release_gate.json",
+      "mtime_ns": 1778934742769249367,
+      "size_bytes": 3429
+    },
+    {
+      "priority": 1,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.75/release_gate.json",
+      "mtime_ns": 1776061877412723483,
+      "size_bytes": 3322
+    },
+    {
+      "priority": 1,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.76/release_gate.json",
+      "mtime_ns": 1778902283785507145,
+      "size_bytes": 3429
+    },
+    {
+      "priority": 1,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.77/release_gate.json",
+      "mtime_ns": 1778914952776893070,
+      "size_bytes": 3429
+    },
+    {
+      "priority": 1,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.78/release_gate.json",
+      "mtime_ns": 1778915106190183500,
+      "size_bytes": 3429
+    },
+    {
+      "priority": 1,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.79/release_gate.json",
+      "mtime_ns": 1778915884906530258,
+      "size_bytes": 3429
+    },
+    {
+      "priority": 1,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.80/release_gate.json",
+      "mtime_ns": 1778917451141483761,
+      "size_bytes": 3429
+    },
+    {
+      "priority": 1,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.81/release_gate.json",
+      "mtime_ns": 1778919933596894796,
+      "size_bytes": 3429
+    },
+    {
+      "priority": 1,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.82/release_gate.json",
+      "mtime_ns": 1778920644199402782,
+      "size_bytes": 3429
+    },
+    {
+      "priority": 1,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.83/release_gate.json",
+      "mtime_ns": 1778923622150198567,
+      "size_bytes": 3429
+    },
+    {
+      "priority": 1,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.84/release_gate.json",
+      "mtime_ns": 1778926191516683885,
+      "size_bytes": 3429
+    },
+    {
+      "priority": 1,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.85/release_gate.json",
+      "mtime_ns": 1778931052467791243,
+      "size_bytes": 3429
+    },
+    {
+      "priority": 1,
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.86/release_gate.json",
+      "mtime_ns": 1778934742769067077,
+      "size_bytes": 3429
+    }
+  ],
+  "entries": [
+    {
+      "tool_version": "1.99.86",
+      "tool_release_date": "2026-05-16",
+      "generated_at": "2026-05-16T21:32:22",
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.86_release_gate.json",
+      "file_name": "yt_auto_editor_1.99.86_release_gate.json",
+      "mode": "free_release_gate",
+      "gate_status": "pass",
+      "gate_label": "配布OK候補",
+      "gate_message": "無料Release Gateの範囲では、配布前の主要ファイルは揃っています。",
+      "contract_fail_count": 0,
+      "contract_warn_count": 0
+    },
+    {
+      "tool_version": "1.99.85",
+      "tool_release_date": "2026-05-16",
+      "generated_at": "2026-05-16T20:30:52",
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.85_release_gate.json",
+      "file_name": "yt_auto_editor_1.99.85_release_gate.json",
+      "mode": "free_release_gate",
+      "gate_status": "pass",
+      "gate_label": "配布OK候補",
+      "gate_message": "無料Release Gateの範囲では、配布前の主要ファイルは揃っています。",
+      "contract_fail_count": 0,
+      "contract_warn_count": 0
+    },
+    {
+      "tool_version": "1.99.84",
+      "tool_release_date": "2026-05-16",
+      "generated_at": "2026-05-16T19:09:51",
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.84_release_gate.json",
+      "file_name": "yt_auto_editor_1.99.84_release_gate.json",
+      "mode": "free_release_gate",
+      "gate_status": "pass",
+      "gate_label": "配布OK候補",
+      "gate_message": "無料Release Gateの範囲では、配布前の主要ファイルは揃っています。",
+      "contract_fail_count": 0,
+      "contract_warn_count": 0
+    },
+    {
+      "tool_version": "1.99.83",
+      "tool_release_date": "2026-05-16",
+      "generated_at": "2026-05-16T18:27:02",
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.83_release_gate.json",
+      "file_name": "yt_auto_editor_1.99.83_release_gate.json",
+      "mode": "free_release_gate",
+      "gate_status": "pass",
+      "gate_label": "配布OK候補",
+      "gate_message": "無料Release Gateの範囲では、配布前の主要ファイルは揃っています。",
+      "contract_fail_count": 0,
+      "contract_warn_count": 0
+    },
+    {
+      "tool_version": "1.99.82",
+      "tool_release_date": "2026-05-16",
+      "generated_at": "2026-05-16T17:37:24",
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.82_release_gate.json",
+      "file_name": "yt_auto_editor_1.99.82_release_gate.json",
+      "mode": "free_release_gate",
+      "gate_status": "pass",
+      "gate_label": "配布OK候補",
+      "gate_message": "無料Release Gateの範囲では、配布前の主要ファイルは揃っています。",
+      "contract_fail_count": 0,
+      "contract_warn_count": 0
+    },
+    {
+      "tool_version": "1.99.81",
+      "tool_release_date": "2026-05-16",
+      "generated_at": "2026-05-16T17:25:33",
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.81_release_gate.json",
+      "file_name": "yt_auto_editor_1.99.81_release_gate.json",
+      "mode": "free_release_gate",
+      "gate_status": "pass",
+      "gate_label": "配布OK候補",
+      "gate_message": "無料Release Gateの範囲では、配布前の主要ファイルは揃っています。",
+      "contract_fail_count": 0,
+      "contract_warn_count": 0
+    },
+    {
+      "tool_version": "1.99.80",
+      "tool_release_date": "2026-05-16",
+      "generated_at": "2026-05-16T16:44:11",
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.80_release_gate.json",
+      "file_name": "yt_auto_editor_1.99.80_release_gate.json",
+      "mode": "free_release_gate",
+      "gate_status": "pass",
+      "gate_label": "配布OK候補",
+      "gate_message": "無料Release Gateの範囲では、配布前の主要ファイルは揃っています。",
+      "contract_fail_count": 0,
+      "contract_warn_count": 0
+    },
+    {
+      "tool_version": "1.99.79",
+      "tool_release_date": "2026-05-16",
+      "generated_at": "2026-05-16T16:18:04",
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.79_release_gate.json",
+      "file_name": "yt_auto_editor_1.99.79_release_gate.json",
+      "mode": "free_release_gate",
+      "gate_status": "pass",
+      "gate_label": "配布OK候補",
+      "gate_message": "無料Release Gateの範囲では、配布前の主要ファイルは揃っています。",
+      "contract_fail_count": 0,
+      "contract_warn_count": 0
+    },
+    {
+      "tool_version": "1.99.78",
+      "tool_release_date": "2026-05-16",
+      "generated_at": "2026-05-16T16:05:06",
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.78_release_gate.json",
+      "file_name": "yt_auto_editor_1.99.78_release_gate.json",
+      "mode": "free_release_gate",
+      "gate_status": "pass",
+      "gate_label": "配布OK候補",
+      "gate_message": "無料Release Gateの範囲では、配布前の主要ファイルは揃っています。",
+      "contract_fail_count": 0,
+      "contract_warn_count": 0
+    },
+    {
+      "tool_version": "1.99.77",
+      "tool_release_date": "2026-05-16",
+      "generated_at": "2026-05-16T16:02:32",
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.77_release_gate.json",
+      "file_name": "yt_auto_editor_1.99.77_release_gate.json",
+      "mode": "free_release_gate",
+      "gate_status": "pass",
+      "gate_label": "配布OK候補",
+      "gate_message": "無料Release Gateの範囲では、配布前の主要ファイルは揃っています。",
+      "contract_fail_count": 0,
+      "contract_warn_count": 0
+    },
+    {
+      "tool_version": "1.99.76",
+      "tool_release_date": "2026-05-16",
+      "generated_at": "2026-05-16T12:31:23",
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.76_release_gate.json",
+      "file_name": "yt_auto_editor_1.99.76_release_gate.json",
+      "mode": "free_release_gate",
+      "gate_status": "pass",
+      "gate_label": "配布OK候補",
+      "gate_message": "無料Release Gateの範囲では、配布前の主要ファイルは揃っています。",
+      "contract_fail_count": 0,
+      "contract_warn_count": 0
+    },
+    {
+      "tool_version": "1.99.75",
+      "tool_release_date": "",
+      "generated_at": "",
+      "path": "/Users/tani/trading_bot/trading_bot/MAIN/dist/yt_auto_editor_1.99.75_release_gate.json",
+      "file_name": "yt_auto_editor_1.99.75_release_gate.json",
+      "mode": "free_release_gate",
+      "gate_status": "pass",
+      "gate_label": "配布OK候補",
+      "gate_message": "無料Release Gateの範囲では、配布前の主要ファイルは揃っています。",
+      "contract_fail_count": 0,
+      "contract_warn_count": 0
+    }
+  ]
+}

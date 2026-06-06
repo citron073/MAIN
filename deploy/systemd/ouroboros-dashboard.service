@@ -1,0 +1,17 @@
+[Unit]
+Description=Ouroboros streamlit dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=-/etc/ouroboros/secrets.env
+ExecStart=/home/ubuntu/trading_bot/trading_bot/MAIN/.venv/bin/streamlit run dashboard.py --server.address 0.0.0.0 --server.port 8501
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

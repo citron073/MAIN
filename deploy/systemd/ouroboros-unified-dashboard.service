@@ -1,0 +1,17 @@
+[Unit]
+Description=Ouroboros unified dashboard static server
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/home/ubuntu/trading_bot/MAIN/tools/unified_dashboard.html
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 -m http.server 8793 --bind 0.0.0.0 --directory /home/ubuntu/trading_bot/MAIN
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

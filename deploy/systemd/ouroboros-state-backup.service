@@ -1,0 +1,12 @@
+[Unit]
+Description=Ouroboros daily state.json backup
+After=network-online.target
+ConditionPathExists=/home/ubuntu/trading_bot/MAIN/state.json
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/MAIN
+ExecStart=/home/ubuntu/trading_bot/MAIN/tools/run_state_backup.sh
+StandardOutput=journal
+StandardError=journal

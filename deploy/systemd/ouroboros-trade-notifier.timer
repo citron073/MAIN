@@ -1,0 +1,13 @@
+[Unit]
+Description=Run Ouroboros trade event notifier every minute
+
+[Timer]
+OnBootSec=45s
+OnUnitActiveSec=60s
+Unit=ouroboros-trade-notifier.service
+Persistent=true
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target
+

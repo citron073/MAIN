@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ouroboros AI Harness</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4efe4;
+      --ink: #1f2b2a;
+      --muted: #5f6b67;
+      --card: #fffaf0;
+      --line: #decfb3;
+      --accent: #0e7c66;
+      --warn: #b86b18;
+      --shadow: rgba(44, 35, 18, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at 16% 8%, rgba(14, 124, 102, 0.16), transparent 28rem),
+        linear-gradient(135deg, #f8f0dd, var(--bg));
+      color: var(--ink);
+      font: 16px/1.65 ui-rounded, "Hiragino Maru Gothic ProN", "Hiragino Sans", sans-serif;
+    }
+    main {
+      width: min(1040px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 48px 0;
+    }
+    .hero {
+      display: grid;
+      grid-template-columns: 1.4fr 0.8fr;
+      gap: 18px;
+      align-items: stretch;
+    }
+    .card {
+      background: rgba(255, 250, 240, 0.92);
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      box-shadow: 0 18px 48px var(--shadow);
+      padding: 28px;
+    }
+    h1 {
+      font-size: clamp(32px, 5vw, 64px);
+      letter-spacing: -0.05em;
+      line-height: 0.95;
+      margin: 0 0 16px;
+    }
+    h2 {
+      margin: 0 0 14px;
+      letter-spacing: -0.03em;
+    }
+    p { color: var(--muted); margin: 0 0 16px; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid rgba(14, 124, 102, 0.28);
+      background: rgba(14, 124, 102, 0.09);
+      color: var(--accent);
+      padding: 7px 11px;
+      border-radius: 999px;
+      font-weight: 700;
+      font-size: 13px;
+      margin-bottom: 18px;
+    }
+    .links {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+    a.tile {
+      display: block;
+      text-decoration: none;
+      color: var(--ink);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      padding: 16px;
+      background: #fffdf6;
+      transition: transform 120ms ease, border-color 120ms ease;
+    }
+    a.tile:hover {
+      transform: translateY(-2px);
+      border-color: rgba(14, 124, 102, 0.5);
+    }
+    .tile strong { display: block; margin-bottom: 4px; }
+    .tile span { color: var(--muted); font-size: 13px; }
+    code {
+      display: block;
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: #182422;
+      color: #eafff7;
+      overflow-x: auto;
+      font-size: 13px;
+    }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-top: 18px;
+    }
+    .step {
+      border-left: 4px solid var(--accent);
+      background: rgba(255, 255, 255, 0.52);
+      padding: 14px;
+      border-radius: 16px;
+    }
+    .step b { display: block; }
+    .step span { color: var(--muted); font-size: 13px; }
+    .warn {
+      border-color: rgba(184, 107, 24, 0.35);
+      background: rgba(184, 107, 24, 0.08);
+    }
+    @media (max-width: 820px) {
+      main { padding: 24px 0; }
+      .hero, .links, .steps { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="hero">
+      <div class="card">
+        <div class="badge">Symphony-style / local-only</div>
+        <h1>Ouroboros AI Harness</h1>
+        <p>作業をチャットの流れではなく、ワークアイテムとして管理するための入口です。VM、本番、main実弾は明示承認なしで触りません。</p>
+        <div class="links">
+          <a class="tile" href="WORKFLOW.md"><strong>WORKFLOW.md</strong><span>状態遷移と安全境界</span></a>
+          <a class="tile" href="work_items.json"><strong>work_items.json</strong><span>未完了作業の台帳</span></a>
+          <a class="tile" href="ouroboros_quality_gate.md"><strong>Quality Gate</strong><span>実装前契約とレビュー基準</span></a>
+          <a class="tile" href="current_spec.md"><strong>current_spec.md</strong><span>現在の実装仕様</span></a>
+          <a class="tile" href="README.md"><strong>README.md</strong><span>運用コマンド一覧</span></a>
+          <a class="tile" href="widget_checklist.md"><strong>Widget Checklist</strong><span>実機確認用チェック</span></a>
+        </div>
+      </div>
+      <aside class="card warn">
+        <h2>次に押す</h2>
+        <p>台帳の整合性とREADY作業を確認します。</p>
+        <code>python3 tools/harness_work_items.py --show-items</code>
+        <p style="margin-top:16px">current_specを台帳へ登録する場合:</p>
+        <code>python3 tools/harness_work_items.py --add-from-spec HARNESS-NEW --status BACKLOG</code>
+        <p style="margin-top:16px">状態だけ更新する場合:</p>
+        <code>python3 tools/harness_work_items.py --set-status HARNESS-NEW --status DONE</code>
+        <p style="margin-top:16px">履歴ファイルの場所:</p>
+        <code>python3 tools/harness_work_items.py --history-path</code>
+      </aside>
+    </section>
+    <section class="card" style="margin-top:18px">
+      <h2>基本ループ</h2>
+      <div class="steps">
+        <div class="step"><b>1. 台帳</b><span>work_items.jsonで対象作業を決める</span></div>
+        <div class="step"><b>2. 契約</b><span>current_spec.mdをREADYにする</span></div>
+        <div class="step"><b>3. 検証</b><span>fast/tradeを通して証跡を残す</span></div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

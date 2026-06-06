@@ -1,0 +1,12 @@
+[Unit]
+Description=Ouroboros champion rollback guard (oneshot)
+After=network-online.target ouroboros-bot.service
+Wants=network-online.target
+ConditionPathExists=/home/ubuntu/trading_bot/trading_bot/MAIN/tools/champion_rollback_guard.py
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/home/ubuntu/trading_bot/trading_bot/MAIN/.venv/bin/python tools/champion_rollback_guard.py --lookback-days 7 --apply

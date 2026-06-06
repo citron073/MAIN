@@ -1,0 +1,14 @@
+[Unit]
+Description=Ouroboros Daily Ops check for VM dashboard
+After=network-online.target ouroboros-unified-dashboard.service
+Wants=network-online.target
+ConditionPathExists=/home/ubuntu/trading_bot/MAIN/tools/daily_ops_check.py
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/trading_bot/MAIN
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 /home/ubuntu/trading_bot/MAIN/tools/daily_ops_check.py --url http://127.0.0.1:8793/tools/unified_dashboard.html --timeout-sec 15
+StandardOutput=append:/home/ubuntu/trading_bot/MAIN/review_out/daily_ops_check.systemd.out.log
+StandardError=append:/home/ubuntu/trading_bot/MAIN/review_out/daily_ops_check.systemd.err.log

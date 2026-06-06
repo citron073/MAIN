@@ -1,0 +1,57 @@
+{
+  "ai_enabled": false,
+  "ai_mode": "ADVISORY",
+  "ai_weight": 0.3,
+  "decision_points": {
+    "entry": true,
+    "exit": false,
+    "extend": true,
+    "skip": true
+  },
+  "confidence_threshold": {
+    "entry": 0.85,
+    "extend": 0.6
+  },
+  "ai_veto": {
+    "enabled": true,
+    "min_confidence": 0.8
+  },
+  "features": {
+    "use_ma": true,
+    "use_trend": true,
+    "use_spread": true,
+    "use_time": true,
+    "use_trendline": true,
+    "use_channel": true,
+    "use_recent_winrate": false
+  },
+  "model_info": {
+    "type": "rule_scoring",
+    "version": "v1",
+    "trained_on": "",
+    "last_updated": "2026-03-04",
+    "auto_updated_by": "bot.daily_ai_autotune",
+    "objective": "loss_small_profit_large",
+    "auto_train_last_day": "2026-03-04",
+    "auto_train_source": "ai_training_log",
+    "auto_train_rows": 59,
+    "auto_train_rows_raw": 59,
+    "auto_train_live_only": false,
+    "auto_train_live_boost": 1.0,
+    "auto_train_recent_halflife_days": 14,
+    "auto_train_base_th": 0.8,
+    "auto_train_best_th": 0.85,
+    "auto_train_base_metric": -0.079305,
+    "auto_train_best_metric": -0.072017,
+    "auto_train_improve": 0.007289,
+    "auto_train_applied": true
+  },
+  "logging": {
+    "log_ai_decision": true,
+    "log_ai_score": true,
+    "log_ai_reason": true
+  },
+  "global": {
+    "threshold": 0.85
+  }
+}

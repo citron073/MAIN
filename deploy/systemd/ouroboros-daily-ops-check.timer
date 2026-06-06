@@ -1,0 +1,11 @@
+[Unit]
+Description=Ouroboros Daily Ops check timer for VM dashboard
+Requires=ouroboros-daily-ops-check.service
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
