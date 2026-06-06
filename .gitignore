@@ -46,6 +46,8 @@ com.ouroboros.ci.plist
 state.json
 CONTROL.csv
 ai_model.json
+# 運用状態ファイル: run_check.sh / spec_check.py が実行毎に書き換える(state.json と同性質)
+.ops_checks.json
 
 # Misc
 .DS_Store
