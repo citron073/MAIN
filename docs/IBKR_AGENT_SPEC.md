@@ -267,6 +267,19 @@ bash tools/ibkr_vm_sync.sh --force
 初期投入日程(検証済): CPI 2026-06-10 08:30 / FOMC声明 2026-06-17・07-29 14:00（[Fed](https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm) / [BLS](https://www.bls.gov/schedule/news_release/cpi.htm)）。
 運用: observe先行→would_block発生と損益相関を検証→block化はたにさん承認後。データ源を将来API化する場合は別途。
 
+## IB Gateway 2FA運用（2026-06-08 改訂）
+
+> 課題: IBKRの2FAは本来「週1回」(日曜01:00 ET以降の初回ログイン)で済む([IBC公式](https://github.com/IbcAlpha/IBC/blob/master/userguide.md))が、Gatewayが週途中でセッションを失い深夜にcold再ログイン→2FAプッシュ→就寝中で承認できず失敗、を繰り返していた。US市場 22:30–05:00 JST=日本の深夜なのが構造要因。autologin.log上、成功はしばしば05:27(=US閉場後)で**場中ダウン**していた。
+
+| 項目 | 設定 | 意図 |
+|---|---|---|
+| `ouroboros-ibkr-2fa-reminder.timer` | **21:15 JST** (旧13:15) | 寄り(22:30)1時間前にタニへ2FAリマインド |
+| `ouroboros-ibgateway.timer` | **21:20 JST** (旧13:20) | 寄り前にcoldログイン→タニが2FA承認→場中セッション維持 |
+| `ouroboros-ibgateway-retry.timer` (drop-in) | 15,17,19,21,23,**05:20** (旧は01,03も) | **深夜01/03:20の無駄な2FAプッシュを除去**(就寝中で必ず失敗するため) |
+| `jts.ini autoRestartTime` | 06:00 JST | US閉場(05:00)直後に自動再起動・セッション保持 |
+
+注意: 別端末(スマホIBKRアプリ/Web)で同口座にログインするとGatewayセッションが蹴られ再2FAになる。Gateway稼働中は別端末ログインを避ける。深夜にクラッシュした場合は05:20まで再試行しない設計(未入金のため場中ダウンの金銭影響は現状なし)。根本のクラッシュ耐性向上は別途課題。
+
 ## 変更チェックリスト
 
 エージェント関連コードを変更する際は以下を確認すること:
