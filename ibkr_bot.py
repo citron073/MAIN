@@ -17,9 +17,9 @@ import urllib.error
 import urllib.request
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
-IBKR_BOT_VERSION = "2026.06.04.1"
+IBKR_BOT_VERSION = "2026.06.07.1"
 
 MAIN_DIR = Path(__file__).resolve().parent
 LOGS_DIR = MAIN_DIR.parent / "logs"
@@ -313,6 +313,29 @@ def _fetch_vix(state: Dict) -> Optional[float]:
         if "_vix_value" in state:
             return float(state["_vix_value"])
         return None
+
+
+def _econ_event_gate(ctrl: Dict, now_et: datetime) -> Tuple[bool, str]:
+    """経済イベント(FOMC/CPI/PCE/雇用統計等)の発表前後ウィンドウ内なら遮断対象。
+    ibkr_econ_gate_events: 'YYYY-MM-DD HH:MM'(ET基準)をセミコロン区切りで列挙。
+    過去イベントは now_et がウィンドウ外になるため自然に無効化される。"""
+    raw = str(ctrl.get("ibkr_econ_gate_events", "") or "").strip()
+    if not raw:
+        return False, ""
+    before = _ctrl_int(ctrl, "ibkr_econ_gate_before_min", 15)
+    after = _ctrl_int(ctrl, "ibkr_econ_gate_after_min", 15)
+    for tok in raw.split(";"):
+        tok = tok.strip()
+        if not tok:
+            continue
+        try:
+            evt = datetime.strptime(tok, "%Y-%m-%d %H:%M")
+        except Exception:
+            continue
+        if (evt - timedelta(minutes=before)) <= now_et <= (evt + timedelta(minutes=after)):
+            return True, (f"econ_event={tok}ET window=-{before}/+{after}min "
+                          f"now={now_et:%Y-%m-%d %H:%M}ET")
+    return False, ""
 
 
 # ---------------------------------------------------------------------------
@@ -789,6 +812,21 @@ def run_once(adapter: Any, ctrl: Dict, state: Dict) -> Dict:
     vix_note = f"vix={vix_val:.1f}" if vix_val is not None else "vix=NA"
     if vix_block_threshold > 0 and vix_val is not None and vix_val >= vix_block_threshold:
         return _early_exit(f"VIX_BLOCK {vix_note} >= threshold={vix_block_threshold}")
+
+    # Economic event gate (global, like VIX) — FOMC/CPI/PCE/雇用統計の発表前後を回避
+    if _ctrl_bool(ctrl, "ibkr_econ_gate_enabled", False):
+        econ_hit, econ_note = _econ_event_gate(ctrl, _now_et())
+        if econ_hit:
+            _econ_mode = str(ctrl.get("ibkr_econ_gate_mode", "observe")).strip().lower()
+            _append_trade_log({
+                "time": _now_jst().strftime("%Y-%m-%d %H:%M:%S"),
+                "side": "",
+                "result": ("ECON_BLOCK" if _econ_mode == "block" else "OBSERVE_ECON_WOULD_BLOCK"),
+                "lot": "", "price": "", "trend": "", "note": econ_note,
+            })
+            if _econ_mode == "block":
+                return _early_exit(f"ECON_BLOCK {econ_note}")
+            # observe: 記録のみで継続(実取引は不変)
 
     # Iterate candidate symbols; enter up to (max_concurrent - current) positions
     for symbol in _get_symbols(ctrl, state):

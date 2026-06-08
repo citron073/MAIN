@@ -3,7 +3,7 @@
 > 更新日: 2026-06-07  
 > 対象: `MAIN/tools/ibkr_*.{py,sh}` + LaunchAgent plist群 + `ibkr_bot.py` / `investor_council.py`  
 > 目的: 各エージェントの役割・入出力・スケジュールを定義し、将来の変更時の整合性チェックに使う  
-> 実装バージョン: `ibkr_bot.py=v2026.06.04.1`（投資円卓会議統合）
+> 実装バージョン: `ibkr_bot.py=v2026.06.07.1`（投資円卓会議統合 + 経済イベントゲート observe先行）
 
 ---
 
@@ -250,6 +250,22 @@ bash tools/ibkr_vm_sync.sh --force
 | `ibkr_atr_tp_multiplier` | 1.5 | ATR適応型TP |
 | `ibkr_sl_cooldown_min` | 30 | SL後クールダウン |
 | `ibkr_chart_ai_enabled` / `ibkr_chart_ai_min_prob` | 1 / 0.80 | Chart AIゲート |
+
+## 経済イベントゲート（2026-06-07 / ibkr_bot v2026.06.07.1 / observe先行）
+
+> FOMC/CPI/PCE/雇用統計など予定された高ボラ発表の前後でエントリーを回避（米株一次情報記事の発想をリスクフィルタ化）。BTCの`SKIP_NEWS`相当がIBKRに無かった穴を塞ぐ。VIXゲートと同じグローバル位置に設置。
+
+| パラメータ（IBKR_CONTROL.csv） | 値 | 意味 |
+|---|---|---|
+| `ibkr_econ_gate_enabled` | 1 | 経済イベントゲート有効 |
+| `ibkr_econ_gate_mode` | observe | observe=記録のみ(実取引不変) / block=実遮断（検証後に切替予定） |
+| `ibkr_econ_gate_before_min` | 15 | 発表の何分前から窓に入れるか |
+| `ibkr_econ_gate_after_min` | 60 | 発表の何分後まで窓を継続（CPIスパイク+FOMC会見をカバー） |
+| `ibkr_econ_gate_events` | "YYYY-MM-DD HH:MM;…" | 発表日時(ET基準)をセミコロン区切り。過去日程は自動無効化。**実日程はBLS/Fed公式から手入力** |
+
+実装: `_econ_event_gate(ctrl, now_et)` がイベント窓内を判定。`VIX_BLOCK`の直後に設置し、observe=`OBSERVE_ECON_WOULD_BLOCK`をCSV記録して継続 / block=`ECON_BLOCK`で`_early_exit`遮断。
+初期投入日程(検証済): CPI 2026-06-10 08:30 / FOMC声明 2026-06-17・07-29 14:00（[Fed](https://www.federalreserve.gov/monetarypolicy/fomccalendars.htm) / [BLS](https://www.bls.gov/schedule/news_release/cpi.htm)）。
+運用: observe先行→would_block発生と損益相関を検証→block化はたにさん承認後。データ源を将来API化する場合は別途。
 
 ## 変更チェックリスト
 
