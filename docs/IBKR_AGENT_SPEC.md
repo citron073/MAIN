@@ -275,10 +275,15 @@ bash tools/ibkr_vm_sync.sh --force
 |---|---|---|
 | `ouroboros-ibkr-2fa-reminder.timer` | **20:45 JST** (13:15→21:15→20:45) | 寄り前にタニへ2FAリマインド(ログイン5分前) |
 | `ouroboros-ibgateway.timer` | **20:50 JST** (13:20→21:20→20:50) | 寄り前にcoldログイン→タニが2FA承認→場中セッション維持 |
-| `ouroboros-ibgateway-retry.timer` (drop-in) | 15,17,19,21,23,**05:20** (旧は01,03も) | **深夜01/03:20の無駄な2FAプッシュを除去**(就寝中で必ず失敗するため) |
+| `ouroboros-ibgateway-retry.timer` (drop-in) | 15,17,19,21,23,**01**,05:20 (2026-06-10: 01:20を復活/03:20は除外) | 落ちた時の再ログイン試行(健全時はno-op)。場中復旧のため深夜01:20を戻した |
+| `ouroboros-ibkr-gateway-down-alert.timer` (新規 2026-06-10) | 10分毎 | **US場中(ET平日09:30-16:00)にport7496が閉じたらntfy通知**(`tools/ibkr_gateway_down_alert.sh`・30分dedup)。場中ダウンに気づけるように |
 | `jts.ini autoRestartTime` | 06:00 JST | US閉場(05:00)直後に自動再起動・セッション保持 |
 
-注意: 別端末(スマホIBKRアプリ/Web)で同口座にログインするとGatewayセッションが蹴られ再2FAになる。Gateway稼働中は別端末ログインを避ける。深夜にクラッシュした場合は05:20まで再試行しない設計(未入金のため場中ダウンの金銭影響は現状なし)。根本のクラッシュ耐性向上は別途課題。
+注意:
+- 別端末(スマホIBKRアプリ/Web)で同口座にログインするとGatewayセッションが蹴られ再2FAになる。Gateway稼働中は別端末ログインを避ける。
+- 2FAはタップ必須なので**夜間に自動で立て直す方法は無い**(retryを戻しても就寝中はタップ不可)。→ 場中ダウン通知でタニが気づき「起動し直して」で復旧する運用。
+- Gateway停止の実態(2026-06-09 23:45は"Deactivated successfully"=クラッシュでなく正常停止。IBKR側ログオフ/別端末ログインの疑い)。根本のセッション維持改善は別途課題。
+- 別件修正(2026-06-10): `ouroboros-dashboard.service` が8501ポート競合で約4万回クラッシュループしていたため stop+disable(html/unified dashboardが正常稼働中で冗長)。
 
 ## 変更チェックリスト
 
