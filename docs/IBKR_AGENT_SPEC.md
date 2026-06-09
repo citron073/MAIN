@@ -273,8 +273,8 @@ bash tools/ibkr_vm_sync.sh --force
 
 | 項目 | 設定 | 意図 |
 |---|---|---|
-| `ouroboros-ibkr-2fa-reminder.timer` | **21:15 JST** (旧13:15) | 寄り(22:30)1時間前にタニへ2FAリマインド |
-| `ouroboros-ibgateway.timer` | **21:20 JST** (旧13:20) | 寄り前にcoldログイン→タニが2FA承認→場中セッション維持 |
+| `ouroboros-ibkr-2fa-reminder.timer` | **20:45 JST** (13:15→21:15→20:45) | 寄り前にタニへ2FAリマインド(ログイン5分前) |
+| `ouroboros-ibgateway.timer` | **20:50 JST** (13:20→21:20→20:50) | 寄り前にcoldログイン→タニが2FA承認→場中セッション維持 |
 | `ouroboros-ibgateway-retry.timer` (drop-in) | 15,17,19,21,23,**05:20** (旧は01,03も) | **深夜01/03:20の無駄な2FAプッシュを除去**(就寝中で必ず失敗するため) |
 | `jts.ini autoRestartTime` | 06:00 JST | US閉場(05:00)直後に自動再起動・セッション保持 |
 
