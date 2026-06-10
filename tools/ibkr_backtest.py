@@ -105,6 +105,8 @@ def main() -> int:
     ap.add_argument("--rr", type=float, default=2.0, help="B案のR:R(TP=SL×rr)")
     ap.add_argument("--max-hold", type=int, default=36)
     ap.add_argument("--min-atr-pct", type=float, default=0.0, help="ATR%下限フィルタ")
+    ap.add_argument("--date-from", default="", help="この日付(YYYY-MM-DD)以降のバーのみ")
+    ap.add_argument("--date-to", default="", help="この日付(YYYY-MM-DD)以前のバーのみ")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
 
@@ -119,6 +121,10 @@ def main() -> int:
     for fp in files:
         sym = fp.stem.split("_")[0]
         bars = _load_bars(fp)
+        if args.date_from or args.date_to:
+            bars = [b for b in bars
+                    if (not args.date_from or b["time"][:10] >= args.date_from)
+                    and (not args.date_to or b["time"][:10] <= args.date_to)]
         if len(bars) < args.slow + 5:
             continue
         i = args.slow + 1
