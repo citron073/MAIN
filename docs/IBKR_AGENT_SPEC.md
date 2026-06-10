@@ -3,7 +3,7 @@
 > 更新日: 2026-06-11  
 > 対象: `MAIN/tools/ibkr_*.{py,sh}` + LaunchAgent plist群 + `ibkr_bot.py` / `investor_council.py`  
 > 目的: 各エージェントの役割・入出力・スケジュールを定義し、将来の変更時の整合性チェックに使う  
-> 実装バージョン: `ibkr_bot.py=v2026.06.11.2`（C:通知堅牢化[Priority=high+NTFY_OK/FAILログ・無音バグ撲滅] / B:ATRベース損切り gated[`ibkr_atr_sl_multiplier`既定0・Phase3検証後有効化] / A:SELL対称ガード observe[`ibkr_sell_daily_move_block_pct=-2.0`・過伸び下落の空売り回避]。土台: `MAIN/docs/trading_knowledge/` 知識ベース参照）  
+> 実装バージョン: `ibkr_bot.py=v2026.06.11.3`（C:通知堅牢化[Priority=high+NTFY_OK/FAILログ] / B:ATRベース損切り[`ibkr_atr_sl_multiplier=2.0`・Phase3検証後**有効化済**] / A:SELL対称ガード observe[`ibkr_sell_daily_move_block_pct=-2.0`] / P2:ATR下限エントリーフィルタ observe[`ibkr_min_atr_pct_entry=0.20`]。Phase2: `/protrader`プロトレーダーAgent。土台: `MAIN/docs/trading_knowledge/`6本+バックテスト基盤`tools/ibkr_{fetch_history,backtest}.py`）  
 > 旧: v2026.06.07.1（投資円卓会議統合 + 経済イベントゲート observe先行）
 
 ---

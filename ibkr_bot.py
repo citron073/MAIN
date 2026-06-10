@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-IBKR_BOT_VERSION = "2026.06.11.2"
+IBKR_BOT_VERSION = "2026.06.11.3"
 
 MAIN_DIR = Path(__file__).resolve().parent
 LOGS_DIR = MAIN_DIR.parent / "logs"
@@ -931,6 +931,31 @@ def run_once(adapter: Any, ctrl: Dict, state: Dict) -> Dict:
                     "side": signal, "result": "SELL_DM_OBSERVE", "lot": 0,
                     "price": round(current_price, 4), "trend": trend, "note": note,
                 })
+
+        # P2 レジームフィルタ: ATR下限エントリーフィルタ(observe先行 2026-06-11)
+        # 低ボラ(レンジ/チョップ)でのSMAクロスはwhipsawで負ける。ATR%が閾値未満ならエントリー記録/遮断。
+        # バックテスト(06_backtest_results.md): ATR%>=0.20で現行すら+期待値に。ibkr_min_atr_pct_entry(0=無効)
+        min_atr_entry = _ctrl_float(ctrl, "ibkr_min_atr_pct_entry", 0.0)
+        if signal and min_atr_entry > 0 and atr is not None and current_price > 0:
+            atr_pct_now = atr / current_price * 100
+            if atr_pct_now < min_atr_entry:
+                min_atr_mode = (str(ctrl.get("ibkr_min_atr_pct_entry_mode", "observe")).strip().lower() or "observe")
+                note = f"atr%={atr_pct_now:.3f} < min={min_atr_entry} (低ボラ・チョップ) mode={min_atr_mode}"
+                if min_atr_mode == "block":
+                    print(f"[ibkr_bot] LOW_ATR_BLOCK {symbol}: {note}")
+                    _append_trade_log({
+                        "time": _now_jst().strftime("%Y-%m-%d %H:%M:%S"),
+                        "side": signal, "result": "LOW_ATR_BLOCK", "lot": 0,
+                        "price": round(current_price, 4), "trend": trend, "note": note,
+                    })
+                    signal = None
+                else:
+                    print(f"[ibkr_bot] LOW_ATR_OBSERVE {symbol}: {note} (実遮断せず)")
+                    _append_trade_log({
+                        "time": _now_jst().strftime("%Y-%m-%d %H:%M:%S"),
+                        "side": signal, "result": "LOW_ATR_OBSERVE", "lot": 0,
+                        "price": round(current_price, 4), "trend": trend, "note": note,
+                    })
 
         if signal and _ctrl_int(ctrl, "ibkr_setup_volume_filter", 0) and not _volume_surge(bars):
             print(f"[ibkr_bot] VOL_BLOCK {symbol}: volume below 20-bar average")
