@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-IBKR_BOT_VERSION = "2026.06.07.1"
+IBKR_BOT_VERSION = "2026.06.11.2"
 
 MAIN_DIR = Path(__file__).resolve().parent
 LOGS_DIR = MAIN_DIR.parent / "logs"
@@ -122,27 +122,32 @@ def _is_live_mode(ctrl: dict) -> bool:
         return False
 
 
-def _send_ntfy(title: str, body: str) -> None:
+def _send_ntfy(title: str, body: str, priority: str = "high", tags: str = "chart_increasing") -> bool:
+    """ntfy通知を送信。成功/失敗を必ずログ出力(無音バグ防止 / parity原則 2026-06-11)。
+    trade系(ENTRY/EXIT/STOPFILL)は既定 priority=high で夜間でも気付けるようにする。戻り値=送信成否。"""
     url = (_read_toml_str("ntfy_stock_topic_url") or _read_toml_str("ntfy_topic_url"))
-    if not url:
-        return
-    bearer = _read_toml_str("ntfy_bearer_token")
     safe_title = title.encode("ascii", errors="replace").decode("ascii")
+    if not url:
+        print(f"[ibkr_bot] NTFY_SKIP topic_url未設定 title={safe_title}")
+        return False
+    bearer = _read_toml_str("ntfy_bearer_token")
     headers: Dict[str, str] = {
         "Content-Type": "text/plain; charset=utf-8",
         "Title": safe_title,
-        "Priority": "default",
-        "Tags": "chart_increasing",
+        "Priority": priority,
+        "Tags": tags,
     }
     if bearer:
         headers["Authorization"] = f"Bearer {bearer}"
     try:
         req = urllib.request.Request(url, data=body.encode("utf-8"),
                                      headers=headers, method="POST")
-        with urllib.request.urlopen(req, timeout=8.0):
-            pass
-    except Exception:
-        pass
+        with urllib.request.urlopen(req, timeout=8.0) as r:
+            print(f"[ibkr_bot] NTFY_OK http={getattr(r, 'status', '?')} prio={priority} title={safe_title}")
+            return True
+    except Exception as e:
+        print(f"[ibkr_bot] NTFY_FAIL title={safe_title} err={type(e).__name__}: {e}")
+        return False
 
 
 # ---------------------------------------------------------------------------
@@ -871,6 +876,18 @@ def run_once(adapter: Any, ctrl: Dict, state: Dict) -> Dict:
                 print(f"[ibkr_bot] ATR_TP {symbol}: {effective_tp:.3f}% → {atr_tp:.3f}%")
                 effective_tp = round(atr_tp, 4)
 
+        # ATR-based adaptive SL (gated・既定0=固定sl_pct維持 / P1構造欠陥対策 2026-06-11)
+        # 既存はTP側のみATR適応、SL側は固定-0.5%でATRノイズより狭く狩られていた。
+        # ibkr_atr_sl_multiplier>0 でSLをATR×倍率に拡大(より負=ワイドの時のみ採用)。R:R維持はTP側multiplierを2倍に設定。
+        effective_sl = sl_pct
+        atr_sl_multiplier = _ctrl_float(ctrl, "ibkr_atr_sl_multiplier", 0.0)
+        if atr_sl_multiplier > 0 and atr is not None and current_price > 0:
+            atr_as_pct = atr / current_price * 100
+            atr_sl = -(atr_sl_multiplier * atr_as_pct)  # 負値
+            if atr_sl < effective_sl:  # よりワイド(より負)な時だけ採用＝ノイズ狩り回避
+                print(f"[ibkr_bot] ATR_SL {symbol}: {effective_sl:.3f}% → {atr_sl:.3f}%")
+                effective_sl = round(atr_sl, 4)
+
         if trade_side == "BUY" and signal != "BUY":
             signal = None
         elif trade_side == "SELL" and signal != "SELL":
@@ -891,6 +908,29 @@ def run_once(adapter: Any, ctrl: Dict, state: Dict) -> Dict:
         if signal == "BUY" and daily_move is not None and daily_move <= -1.5:
             print(f"[ibkr_bot] DAILY_MOVE_BLOCK BUY {symbol}: intraday={daily_move:.2f}%")
             signal = None
+
+        # SELL対称ガード(observe先行 / P3: 下げ切り後の反発を空売りしない 2026-06-11)
+        # 既存はBUYのみ落ちるナイフ回避。SELL側は過伸び下落での反発リスクを記録/遮断。
+        # ibkr_sell_daily_move_block_pct(負値・例-2.0/0=無効) ＆ mode=observe(記録のみ)/block(実遮断)
+        sell_dm_block = _ctrl_float(ctrl, "ibkr_sell_daily_move_block_pct", 0.0)
+        if signal == "SELL" and sell_dm_block < 0 and daily_move is not None and daily_move <= sell_dm_block:
+            sell_dm_mode = (str(ctrl.get("ibkr_sell_daily_move_block_mode", "observe")).strip().lower() or "observe")
+            note = f"intraday={daily_move:.2f}% <= {sell_dm_block}% (過伸び下落・反発リスク) mode={sell_dm_mode}"
+            if sell_dm_mode == "block":
+                print(f"[ibkr_bot] SELL_DM_BLOCK {symbol}: {note}")
+                _append_trade_log({
+                    "time": _now_jst().strftime("%Y-%m-%d %H:%M:%S"),
+                    "side": signal, "result": "SELL_DM_BLOCK", "lot": 0,
+                    "price": round(current_price, 4), "trend": trend, "note": note,
+                })
+                signal = None
+            else:
+                print(f"[ibkr_bot] SELL_DM_OBSERVE {symbol}: {note} (実遮断せず)")
+                _append_trade_log({
+                    "time": _now_jst().strftime("%Y-%m-%d %H:%M:%S"),
+                    "side": signal, "result": "SELL_DM_OBSERVE", "lot": 0,
+                    "price": round(current_price, 4), "trend": trend, "note": note,
+                })
 
         if signal and _ctrl_int(ctrl, "ibkr_setup_volume_filter", 0) and not _volume_surge(bars):
             print(f"[ibkr_bot] VOL_BLOCK {symbol}: volume below 20-bar average")
@@ -965,7 +1005,7 @@ def run_once(adapter: Any, ctrl: Dict, state: Dict) -> Dict:
         protective_stop_id: Optional[int] = None
         stop_price: Optional[float] = None
         try:
-            sl_frac = sl_pct / 100.0  # sl_pct は負値（例 -0.5）
+            sl_frac = effective_sl / 100.0  # effective_sl は負値（例 -0.5 / ATR-SL有効時はより負）
             stop_price = round(fill_price * (1 + sl_frac), 2) if signal == "BUY" else round(fill_price * (1 - sl_frac), 2)
             stop_action = "SELL" if signal == "BUY" else "BUY"
             stp = adapter.place_order(symbol=symbol, action=stop_action, quantity=shares,
@@ -986,7 +1026,7 @@ def run_once(adapter: Any, ctrl: Dict, state: Dict) -> Dict:
                 f"pos_id={pos_id} symbol={symbol} "
                 f"entry_time={_now_jst().strftime('%Y-%m-%dT%H:%M:%S')} "
                 f"entry_price={fill_price:.4f} "
-                f"tp_pct={effective_tp} sl_pct={sl_pct} "
+                f"tp_pct={effective_tp} sl_pct={effective_sl} "
                 f"sma_fast={fast_n} sma_slow={slow_n}"
                 + (f" vwap={vwap:.2f}" if vwap else "")
                 + (f" atr={atr:.4f}" if atr else "")
@@ -1008,7 +1048,7 @@ def run_once(adapter: Any, ctrl: Dict, state: Dict) -> Dict:
             "protective_stop_order_id": protective_stop_id,
             "stop_price": stop_price,
             "tp_pct": effective_tp,
-            "sl_pct": sl_pct,
+            "sl_pct": effective_sl,
             "best_fav": 0.0,
             "entry_time": _now_jst().strftime("%Y-%m-%dT%H:%M:%S"),
         }
