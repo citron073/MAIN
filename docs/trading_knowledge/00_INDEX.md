@@ -40,13 +40,16 @@
 
 ## ロードマップ（土台再構築）
 
-- [x] **Phase 1: 知識ベース構築**（本ディレクトリ5本＋索引）✅ 2026-06-11
-- [ ] **Phase 2: プロトレーダーAgent定義** — この知識を実装したsubagent。セットアップ採点・bot批評・改善提案
+- [x] **Phase 1: 知識ベース構築**（本ディレクトリ＋索引）✅ 2026-06-11
+- [x] **Phase 2: プロトレーダーAgent定義** ✅ 2026-06-11 — `/protrader`（`MAIN/.claude/commands/protrader.md`）
 - [~] **Phase 3: 仮想取引の蓄積**（両輪）
-  - [x] 過去データ大量バックテスト基盤構築＋初回検証 → [06_backtest_results.md](06_backtest_results.md) ✅ 2026-06-11（`tools/ibkr_fetch_history.py`＋`tools/ibkr_backtest.py`。P1/P2を実データで確証）
-  - [ ] IBKR paperでリアル蓄積（日々の紙取引→MAE/MFE分析。C/A稼働中で収集開始）
-  - [ ] データ拡張（60〜90日・銘柄追加・ウォークフォワード）
-- [ ] **Phase 4: 統合・bot改善** — 蓄積知見でP1〜P6を observe→検証→block で段階適用（B有効化案: `ibkr_atr_sl_multiplier=2.0`＋ATR下限フィルタ）
+  - [x] バックテスト基盤＋初回検証（10銘柄30日735件）✅ 2026-06-11
+  - [x] 拡張検証（24銘柄90日約5千件＋ウォークフォワード＋trend-maスイープ）✅ 2026-06-11 → [06_backtest_results.md](06_backtest_results.md) 検証2・3
+  - [ ] IBKR paperでリアル蓄積（C/A/P2a/P2b observe稼働中・次営業日から収集）
+- [~] **Phase 4: 統合・bot改善**（observe→検証→block）
+  - [x] B有効化 ✅ 2026-06-11（`ibkr_atr_sl_multiplier=2.0`/`tp=4.0`）
+  - [x] P2b トレンド整合フィルタ observe配備 ✅ 2026-06-11（`ibkr_trend_align_ma_n=250`・**ウォークフォワード通過の本命**・負け期間をプラス転換）
+  - [ ] P2b block化（ライブobserve検証後・最優先候補）/ A・P2a block化（データ蓄積後）
 
 ## 使い方
 - 新しい売買ルール/パラメータを検討する前に、該当KBの「bot紐付けセクション」を必ず読む。
