@@ -97,6 +97,10 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data-dir", default="data/us_stocks")
     ap.add_argument("--bar-min", type=int, default=5)
+    ap.add_argument("--strategy", choices=["sma", "donchian"], default="sma",
+                    help="エントリー信号: sma=SMAクロス(既定) / donchian=ドンチャン・ブレイクアウト(タートルズ型)")
+    ap.add_argument("--donchian-n", type=int, default=20,
+                    help="ドンチャン: 直近Nバーの高値/安値ブレイクでエントリー(タートルズは日足20)")
     ap.add_argument("--fast", type=int, default=5)
     ap.add_argument("--slow", type=int, default=20)
     ap.add_argument("--fixed-sl", type=float, default=0.5, help="正の絶対値%")
@@ -143,7 +147,19 @@ def main() -> int:
                     i += 1
                     continue
             window = bars[max(0, i - lookback): i + 1]
-            sig = ib._compute_sma_signal(window, args.fast, args.slow)
+            if args.strategy == "donchian":
+                # ドンチャン: 現バーcloseが直近Nバー(現バー除く)の高値超え=BUY/安値割れ=SELL
+                n = args.donchian_n
+                if i < n + 1:
+                    i += 1
+                    continue
+                prior = bars[i - n: i]
+                ch_hi = max(b["high"] for b in prior)
+                ch_lo = min(b["low"] for b in prior)
+                c = bars[i]["close"]
+                sig = "BUY" if c > ch_hi else ("SELL" if c < ch_lo else None)
+            else:
+                sig = ib._compute_sma_signal(window, args.fast, args.slow)
             if sig not in ("BUY", "SELL"):
                 i += 1
                 continue
@@ -200,7 +216,8 @@ def main() -> int:
     print("=" * 64)
     print(f"米株バックテスト結果  銘柄={len(files)}  エントリー={len(trades)}  "
           f"(BUY={side_n['BUY']} SELL={side_n['SELL']})  足={args.bar_min}分")
-    print(f"設定: SMA{args.fast}/{args.slow}  現行SL-{args.fixed_sl}/TP+{args.fixed_tp}  "
+    strat = f"Donchian{args.donchian_n}" if args.strategy == "donchian" else f"SMA{args.fast}/{args.slow}"
+    print(f"設定: {strat}  現行SL-{args.fixed_sl}/TP+{args.fixed_tp}  "
           f"B案 SL=ATR%×{args.sl_mult}(min-{args.fixed_sl}) TP=SL×{args.rr}  max_hold={args.max_hold}")
     print("-" * 64)
     if fs and as_:
