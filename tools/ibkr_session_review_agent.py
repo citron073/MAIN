@@ -25,8 +25,8 @@ OUT_DIR = MAIN_DIR / ".local_llm" / "ibkr" / "review"
 LATEST_PATH = OUT_DIR / "review_latest.json"
 
 OLLAMA_BASE_URL = "http://127.0.0.1:11434"
-OLLAMA_TIMEOUT_SEC = 90
-DEFAULT_MODEL = "qwen2.5:1.5b"
+OLLAMA_TIMEOUT_SEC = 300
+DEFAULT_MODEL = "qwen2.5:0.5b"
 MAX_CHARS = 500
 
 JST = timedelta(hours=9)
@@ -98,18 +98,14 @@ def _load_today_session(logs_dir: Path, day8: str) -> Dict[str, Any]:
         m = re.search(r"pos_id=(\S+)", note)
         pos_id = m.group(1) if m else ""
 
-        # LIVE/PAPER 両対応 + STOPFILL/EOD/STALE 等の新決済も認識（2026-06-06 修正:
-        # IBKRがlive化しresult=LIVE_EXIT_*になった＋STOPFILL追加でparser取りこぼしを解消）
         if result in ("PAPER", "LIVE") and pos_id:
             entries[pos_id] = {"row": row, "note": _parse_note(note)}
-        elif ("_EXIT_" in result) and pos_id and pos_id in entries:
+        elif (result.startswith("PAPER_EXIT") or result.startswith("LIVE_EXIT_")) and pos_id and pos_id in entries:
             entry = entries.pop(pos_id)
             en = entry["note"]
             ex_note = _parse_note(note)
 
-            kind = result.split("_EXIT_")[-1]  # TP/SL/TIMEOUT/STOPFILL/EOD/STALE
-            # STOPFILL=防御逆指値約定(損切り相当), EOD/STALE/TIMEOUT=時間切れ
-            outcome = "TP" if kind == "TP" else ("SL" if kind in ("SL", "STOPFILL") else "TIMEOUT")
+            outcome = "TP" if result in ("PAPER_EXIT_TP", "LIVE_EXIT_TP") else ("SL" if result in ("PAPER_EXIT_SL", "LIVE_EXIT_SL") else "TIMEOUT")
             ret_pct = _safe_float(ex_note.get("current_fav") or ex_note.get("best_fav") or 0.0)
             entry_price = _safe_float(en.get("entry_price") or entry["row"].get("price") or 0.0)
             shares = int(_safe_float(row.get("lot") or 1))
@@ -164,6 +160,20 @@ def _load_today_session(logs_dir: Path, day8: str) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 def _call_ollama(summary: Dict[str, Any], model: str, timeout_sec: int) -> str:
+    # ウォームアップ(2026-06-12): 1日1回実行のため毎回コールドスタートし本呼び出しがタイムアウトしていた対策。
+    # 小さな生成でモデルを事前ロードする(失敗は無視・本呼び出しがそのまま再試行になる)。
+    try:
+        _wreq = urllib.request.Request(
+            f"{OLLAMA_BASE_URL}/api/generate",
+            data=json.dumps({"model": model, "prompt": "ok", "stream": False,
+                             "options": {"num_predict": 1}}).encode("utf-8"),
+            method="POST",
+            headers={"Content-Type": "application/json; charset=utf-8"},
+        )
+        with urllib.request.urlopen(_wreq, timeout=240.0):
+            pass
+    except Exception:
+        pass
     n = summary.get("trade_count", 0)
     wr = summary.get("win_rate", 0.0)
     pnl = summary.get("total_pnl_usd", 0.0)

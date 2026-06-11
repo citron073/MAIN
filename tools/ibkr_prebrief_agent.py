@@ -26,8 +26,8 @@ OUT_DIR = MAIN_DIR / ".local_llm" / "ibkr" / "prebrief"
 LATEST_PATH = OUT_DIR / "prebrief_latest.json"
 
 OLLAMA_BASE_URL = "http://127.0.0.1:11434"
-OLLAMA_TIMEOUT_SEC = 120
-DEFAULT_MODEL = "qwen2.5:1.5b"
+OLLAMA_TIMEOUT_SEC = 300
+DEFAULT_MODEL = "qwen2.5:0.5b"
 DEFAULT_LOOKBACK_DAYS = 14
 MAX_CHARS = 700
 
@@ -96,20 +96,17 @@ def _load_trade_pairs(logs_dir: Path, lookback_days: int) -> List[Dict[str, Any]
             m = re.search(r"pos_id=(\S+)", note)
             pos_id = m.group(1) if m else ""
 
-            # LIVE/PAPER 両対応 + STOPFILL/EOD/STALE 認識（2026-06-06 修正:
-            # IBKR live化でresult=LIVE_EXIT_*、STOPFILL追加に追従）
-            if result in ("PAPER", "LIVE") and pos_id:
+            if result == "PAPER" and pos_id:
                 entries[pos_id] = {"row": row, "note": _parse_note(note), "day": day}
 
-            elif ("_EXIT_" in result) and pos_id and pos_id in entries:
+            elif result.startswith("PAPER_EXIT") and pos_id and pos_id in entries:
                 entry = entries.pop(pos_id)
                 en = entry["note"]
                 ex_note = _parse_note(note)
 
-                kind = result.split("_EXIT_")[-1]
-                if kind == "TP":
+                if result == "PAPER_EXIT_TP":
                     outcome = "TP"
-                elif kind in ("SL", "STOPFILL"):
+                elif result == "PAPER_EXIT_SL":
                     outcome = "SL"
                 else:
                     outcome = "TIMEOUT"
@@ -232,6 +229,20 @@ def _build_prompt(stats: Dict[str, Any], lookback_days: int) -> str:
 # ---------------------------------------------------------------------------
 
 def _call_ollama(prompt: str, model: str, timeout_sec: int) -> str:
+    # ウォームアップ(2026-06-12): 1日1回実行のため毎回コールドスタートし本呼び出しがタイムアウトしていた対策。
+    # 小さな生成でモデルを事前ロードする(失敗は無視・本呼び出しがそのまま再試行になる)。
+    try:
+        _wreq = urllib.request.Request(
+            f"{OLLAMA_BASE_URL}/api/generate",
+            data=json.dumps({"model": model, "prompt": "ok", "stream": False,
+                             "options": {"num_predict": 1}}).encode("utf-8"),
+            method="POST",
+            headers={"Content-Type": "application/json; charset=utf-8"},
+        )
+        with urllib.request.urlopen(_wreq, timeout=240.0):
+            pass
+    except Exception:
+        pass
     payload = json.dumps({"model": model, "prompt": prompt, "stream": False},
                          ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(

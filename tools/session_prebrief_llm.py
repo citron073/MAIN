@@ -25,7 +25,7 @@ SECRETS_TOML = MAIN_DIR / ".streamlit" / "secrets.toml"
 OUT_DIR = MAIN_DIR / "prebrief_out"
 
 OLLAMA_BASE_URL = "http://127.0.0.1:11434"
-OLLAMA_TIMEOUT_SEC = 200
+OLLAMA_TIMEOUT_SEC = 300
 DEFAULT_MODEL = "qwen2.5:0.5b"
 DEFAULT_LOOKBACK_DAYS = 14
 MAX_CHARS = 800
@@ -260,6 +260,20 @@ def _build_prompt(stats: Dict[str, Any], lookback_days: int) -> str:
 # ---------------------------------------------------------------------------
 
 def _call_ollama(prompt: str, model: str, timeout_sec: int) -> str:
+    # ウォームアップ(2026-06-12): 1日1回実行のため毎回コールドスタートし本呼び出しがタイムアウトしていた対策。
+    # 小さな生成でモデルを事前ロードする(失敗は無視・本呼び出しがそのまま再試行になる)。
+    try:
+        _wreq = urllib.request.Request(
+            f"{OLLAMA_BASE_URL}/api/generate",
+            data=json.dumps({"model": model, "prompt": "ok", "stream": False,
+                             "options": {"num_predict": 1}}).encode("utf-8"),
+            method="POST",
+            headers={"Content-Type": "application/json; charset=utf-8"},
+        )
+        with urllib.request.urlopen(_wreq, timeout=240.0):
+            pass
+    except Exception:
+        pass
     payload = json.dumps({"model": model, "prompt": prompt, "stream": False},
                          ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
