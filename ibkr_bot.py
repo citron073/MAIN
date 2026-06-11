@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-IBKR_BOT_VERSION = "2026.06.11.4"
+IBKR_BOT_VERSION = "2026.06.12.1"
 
 MAIN_DIR = Path(__file__).resolve().parent
 LOGS_DIR = MAIN_DIR.parent / "logs"
@@ -865,6 +865,46 @@ def run_once(adapter: Any, ctrl: Dict, state: Dict) -> Dict:
         atr = _compute_atr(bars)
         candle = _detect_candle_pattern(bars)
         daily_move = _daily_move_pct(bars)
+
+        # ドンチャン・ブレイクアウト observe(2026-06-12): 検証5(trading_knowledge/06)でN=50@5分足(=250分)が
+        # 全戦略中最強(+164.50%・WF両期間プラス)。1分足N=250が同一チャネル。記録のみ＝実取引・SMA経路に一切影響しない。
+        # 目的: 実環境でのシグナル頻度・約定品質(ブレイク時のスリッページ)・SMAとの一致率を観測してから採用判断。
+        donch_n = _ctrl_int(ctrl, "ibkr_donchian_observe_n", 0)
+        if donch_n > 0 and len(bars) >= donch_n + 1:
+            prior_bars = bars[-(donch_n + 1):-1]
+            highs = [float(b.get("high", 0)) for b in prior_bars if float(b.get("high", 0)) > 0]
+            lows = [float(b.get("low", 0)) for b in prior_bars if float(b.get("low", 0)) > 0]
+            if highs and lows:
+                ch_hi = max(highs)
+                ch_lo = min(lows)
+                d_sig = "BUY" if current_price > ch_hi else ("SELL" if current_price < ch_lo else None)
+                if d_sig:
+                    cd_min = _ctrl_int(ctrl, "ibkr_donchian_observe_cooldown_min", 30)
+                    d_key = f"{symbol}:{d_sig}"
+                    d_last_map = state.get("donchian_obs_last") or {}
+                    d_ok = True
+                    if d_last_map.get(d_key):
+                        try:
+                            d_last_dt = datetime.strptime(d_last_map[d_key], "%Y-%m-%dT%H:%M:%S")
+                            d_ok = (_now_jst().replace(tzinfo=None) - d_last_dt) >= timedelta(minutes=cd_min)
+                        except Exception:
+                            d_ok = True
+                    if d_ok:
+                        d_last_map[d_key] = _now_jst().strftime("%Y-%m-%dT%H:%M:%S")
+                        state["donchian_obs_last"] = d_last_map
+                        d_note = (
+                            f"donchian n={donch_n} ch_hi={ch_hi:.2f} ch_lo={ch_lo:.2f} price={current_price:.2f}"
+                            + (f" atr={atr:.4f}" if atr else "")
+                            + (f" vwap={vwap:.2f}" if vwap else "")
+                            + (f" daily_move={daily_move:.2f}%" if daily_move is not None else "")
+                            + f" sma_signal={signal or 'NONE'}"
+                        )
+                        print(f"[ibkr_bot] DONCHIAN_OBSERVE {symbol} {d_sig}: {d_note}")
+                        _append_trade_log({
+                            "time": _now_jst().strftime("%Y-%m-%d %H:%M:%S"),
+                            "side": d_sig, "result": "DONCHIAN_OBSERVE", "lot": 0,
+                            "price": round(current_price, 4), "trend": trend, "note": d_note,
+                        })
 
         # ATR-based adaptive TP
         effective_tp = tp_pct

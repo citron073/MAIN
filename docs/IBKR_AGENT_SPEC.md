@@ -3,7 +3,7 @@
 > 更新日: 2026-06-11  
 > 対象: `MAIN/tools/ibkr_*.{py,sh}` + LaunchAgent plist群 + `ibkr_bot.py` / `investor_council.py`  
 > 目的: 各エージェントの役割・入出力・スケジュールを定義し、将来の変更時の整合性チェックに使う  
-> 実装バージョン: `ibkr_bot.py=v2026.06.11.4`（C:通知堅牢化[Priority=high+NTFY_OK/FAILログ] / B:ATRベース損切り[`ibkr_atr_sl_multiplier=2.0`・**有効化済**] / A:SELL対称ガード observe / P2a:ATR下限フィルタ observe[0.20] / **P2b:トレンド整合フィルタ observe[`ibkr_trend_align_ma_n=250`・ウォークフォワード通過の本命ゲート・負け期間をプラス転換]**。Phase2: `/protrader`。土台: `MAIN/docs/trading_knowledge/`7本+バックテスト基盤`tools/ibkr_{fetch_history,backtest}.py`[24銘柄90日5千件+時系列分割+trend-ma検証]）  
+> 実装バージョン: `ibkr_bot.py=v2026.06.12.1`（**ドンチャン・ブレイクアウトobserve追加**: `ibkr_donchian_observe_n=250`[1分足250本=5分足N=50等価・検証5で全戦略中最強+164.50%/WF両期間プラス]。記録のみ＝実取引・SMA経路に無影響。`DONCHIAN_OBSERVE`ログでシグナル頻度・SMA一致率・約定品質を実環境観測→採用判断。cooldown=30分/symbol×side。旧v2026.06.11.4: C:通知堅牢化 / B:ATR-SL有効化済[sl=2.0/tp=4.0] / A:SELL対称ガード observe / P2a:ATR下限 observe[0.20] / P2b:トレンド整合 observe[250]。Phase2: `/protrader`。土台: `MAIN/docs/trading_knowledge/`9本+バックテスト基盤[検証1-5]）  
 > 旧: v2026.06.07.1（投資円卓会議統合 + 経済イベントゲート observe先行）
 
 ---
