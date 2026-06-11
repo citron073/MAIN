@@ -107,6 +107,10 @@ def main() -> int:
     ap.add_argument("--min-atr-pct", type=float, default=0.0, help="ATR%下限フィルタ")
     ap.add_argument("--trend-ma", type=int, default=0,
                     help="上位足トレンド整合フィルタ: NバーMAに対しBUY=close>MA&MA上昇/SELL=close<MA&MA下降 のみ(0=無効)")
+    ap.add_argument("--entry-hour-from", type=int, default=-1,
+                    help="エントリーを許可する時刻下限(データのタイムスタンプ時。-1=無効)")
+    ap.add_argument("--entry-hour-to", type=int, default=-1,
+                    help="エントリーを許可する時刻上限(この時を含む。-1=無効)")
     ap.add_argument("--date-from", default="", help="この日付(YYYY-MM-DD)以降のバーのみ")
     ap.add_argument("--date-to", default="", help="この日付(YYYY-MM-DD)以前のバーのみ")
     ap.add_argument("--verbose", action="store_true")
@@ -129,9 +133,16 @@ def main() -> int:
                     and (not args.date_to or b["time"][:10] <= args.date_to)]
         if len(bars) < args.slow + 5:
             continue
+        # 窓を計算に必要な分だけに限定(全履歴スライスはO(n^2)で52万本級が終わらない)
+        lookback = max(args.slow + 2, args.trend_ma + 1, 60)
         i = args.slow + 1
         while i < len(bars) - 1:
-            window = bars[: i + 1]
+            if args.entry_hour_from >= 0 and args.entry_hour_to >= 0:
+                hh = int(bars[i]["time"][11:13])
+                if not (args.entry_hour_from <= hh <= args.entry_hour_to):
+                    i += 1
+                    continue
+            window = bars[max(0, i - lookback): i + 1]
             sig = ib._compute_sma_signal(window, args.fast, args.slow)
             if sig not in ("BUY", "SELL"):
                 i += 1

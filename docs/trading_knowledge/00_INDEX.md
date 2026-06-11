@@ -15,6 +15,9 @@
 | 03 | [03_us_market_structure.md](03_us_market_structure.md) | 取引時間/ORB/ギャップ/PDT/LULD・CB/板/IBKR特性/時間帯エッジ | FINRA / SEC / NYSE |
 | 04 | [04_risk_management.md](04_risk_management.md) | サイジング/R:R/期待値/ケリー/ATR損切り/破産確率 | Thorp / Kaufman / Zerodha |
 | 05 | [05_fundamentals_catalysts.md](05_fundamentals_catalysts.md) | 決算/FOMC・CPI・PCE・NFP/VIX/カタリスト/一次情報源 | SEC EDGAR / BLS / Cboe |
+| 06 | [06_backtest_results.md](06_backtest_results.md) | バックテスト結果ログ（米株検証1-3＋BTC検証4） | 実データ |
+| 07 | [07_btc_market_structure.md](07_btc_market_structure.md) | **[BTC]** 24h市場/セッション/SFD廃止→funding制/清算カスケード | bitFlyer公式 / 学術 |
+| 08 | [08_btc_catalysts.md](08_btc_catalysts.md) | **[BTC]** FOMC・CPI残存影響/ETFフロー/funding/F&G/DVOL | IMF / Farside / Deribit |
 
 ---
 
@@ -50,6 +53,9 @@
   - [x] B有効化 ✅ 2026-06-11（`ibkr_atr_sl_multiplier=2.0`/`tp=4.0`）
   - [x] P2b トレンド整合フィルタ observe配備 ✅ 2026-06-11（`ibkr_trend_align_ma_n=250`・**ウォークフォワード通過の本命**・負け期間をプラス転換）
   - [ ] P2b block化（ライブobserve検証後・最優先候補）/ A・P2a block化（データ蓄積後）
+- [~] **BTC横展開**（2026-06-12）: KB 07/08作成✅・5年バックテスト✅（[06](06_backtest_results.md)検証4）
+  - 発見: **ATR-SLはBTCでも5/5年で固定SLに勝つ（移植有力）** / **トレンド整合はBTCでは逆効果（移植不可）**＝アジア薄商い帯は平均回帰優位
+  - [ ] BTC bot へのATR-SL導入提案（**LIVE実弾稼働中のため🟡慎重に**・observe先行）
 
 ## 使い方
 - 新しい売買ルール/パラメータを検討する前に、該当KBの「bot紐付けセクション」を必ず読む。
