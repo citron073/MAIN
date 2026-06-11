@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-IBKR_BOT_VERSION = "2026.06.11.3"
+IBKR_BOT_VERSION = "2026.06.11.4"
 
 MAIN_DIR = Path(__file__).resolve().parent
 LOGS_DIR = MAIN_DIR.parent / "logs"
@@ -956,6 +956,37 @@ def run_once(adapter: Any, ctrl: Dict, state: Dict) -> Dict:
                         "side": signal, "result": "LOW_ATR_OBSERVE", "lot": 0,
                         "price": round(current_price, 4), "trend": trend, "note": note,
                     })
+
+        # P2 トレンド整合フィルタ(observe先行 2026-06-11): 上位MA方向に逆らうSMAクロスを記録/遮断。
+        # バックテスト(06_backtest_results.md 検証3): MA50@5分足(=250分)整合で負け期間もプラス転換・
+        # ウォークフォワード通過(+97.77%全期間)。1分足ではN=250が等価。ibkr_trend_align_ma_n(0=無効)
+        trend_ma_n = _ctrl_int(ctrl, "ibkr_trend_align_ma_n", 0)
+        if signal and trend_ma_n > 0:
+            closes_1m = [float(b.get("close", 0)) for b in bars if float(b.get("close", 0)) > 0]
+            if len(closes_1m) >= trend_ma_n + 1:
+                ma_now = sum(closes_1m[-trend_ma_n:]) / trend_ma_n
+                ma_prev = sum(closes_1m[-trend_ma_n - 1:-1]) / trend_ma_n
+                aligned = ((signal == "BUY" and current_price > ma_now and ma_now > ma_prev)
+                           or (signal == "SELL" and current_price < ma_now and ma_now < ma_prev))
+                if not aligned:
+                    trend_align_mode = (str(ctrl.get("ibkr_trend_align_mode", "observe")).strip().lower() or "observe")
+                    note = (f"trend_misalign ma{trend_ma_n}={ma_now:.2f} prev={ma_prev:.2f} "
+                            f"price={current_price:.2f} (上位トレンド逆行) mode={trend_align_mode}")
+                    if trend_align_mode == "block":
+                        print(f"[ibkr_bot] TREND_ALIGN_BLOCK {symbol} {signal}: {note}")
+                        _append_trade_log({
+                            "time": _now_jst().strftime("%Y-%m-%d %H:%M:%S"),
+                            "side": signal, "result": "TREND_ALIGN_BLOCK", "lot": 0,
+                            "price": round(current_price, 4), "trend": trend, "note": note,
+                        })
+                        signal = None
+                    else:
+                        print(f"[ibkr_bot] TREND_ALIGN_OBSERVE {symbol} {signal}: {note} (実遮断せず)")
+                        _append_trade_log({
+                            "time": _now_jst().strftime("%Y-%m-%d %H:%M:%S"),
+                            "side": signal, "result": "TREND_ALIGN_OBSERVE", "lot": 0,
+                            "price": round(current_price, 4), "trend": trend, "note": note,
+                        })
 
         if signal and _ctrl_int(ctrl, "ibkr_setup_volume_filter", 0) and not _volume_surge(bars):
             print(f"[ibkr_bot] VOL_BLOCK {symbol}: volume below 20-bar average")

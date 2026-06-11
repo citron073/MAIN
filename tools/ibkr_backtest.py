@@ -105,6 +105,8 @@ def main() -> int:
     ap.add_argument("--rr", type=float, default=2.0, help="B案のR:R(TP=SL×rr)")
     ap.add_argument("--max-hold", type=int, default=36)
     ap.add_argument("--min-atr-pct", type=float, default=0.0, help="ATR%下限フィルタ")
+    ap.add_argument("--trend-ma", type=int, default=0,
+                    help="上位足トレンド整合フィルタ: NバーMAに対しBUY=close>MA&MA上昇/SELL=close<MA&MA下降 のみ(0=無効)")
     ap.add_argument("--date-from", default="", help="この日付(YYYY-MM-DD)以降のバーのみ")
     ap.add_argument("--date-to", default="", help="この日付(YYYY-MM-DD)以前のバーのみ")
     ap.add_argument("--verbose", action="store_true")
@@ -134,6 +136,20 @@ def main() -> int:
             if sig not in ("BUY", "SELL"):
                 i += 1
                 continue
+            # 上位足トレンド整合フィルタ(P2 regime候補): 長期MA方向に逆らうシグナルを除外
+            if args.trend_ma > 0:
+                closes = [b["close"] for b in window]
+                if len(closes) < args.trend_ma + 1:
+                    i += 1
+                    continue
+                ma_now = sum(closes[-args.trend_ma:]) / args.trend_ma
+                ma_prev = sum(closes[-args.trend_ma - 1:-1]) / args.trend_ma
+                px = closes[-1]
+                up = px > ma_now and ma_now > ma_prev
+                dn = px < ma_now and ma_now < ma_prev
+                if (sig == "BUY" and not up) or (sig == "SELL" and not dn):
+                    i += 1
+                    continue
             atr = ib._compute_atr(window, 14)
             entry = bars[i]["close"]
             if not atr or entry <= 0:
