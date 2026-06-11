@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 
-OUROBOROS_BOT_VERSION = "2026.06.10.1"
+OUROBOROS_BOT_VERSION = "2026.06.12.1"
 OUROBOROS_FEATURE_SCHEMA_VERSION = (
     "ohlc-chart-pattern-quality-market-phase-transition-near-tp-aiba-"
     "phase-fallback-mfe-mae-fib-elliott-v1"

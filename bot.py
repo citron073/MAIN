@@ -152,6 +152,11 @@ CHOP_REQUIRE_WEAK_TREND_DEFAULT = True     # trend_power_regime==weak を必須�
 CHOP_BLOCK_ATR_REGIMES_DEFAULT = "low"     # [legacy] atr_regime方式(BTCではatr_low_pct=0.04が低過ぎ無発火→chop_atr_low_pctへ移行 2026-06-10)
 # chop専用ATR閾値(2026-06-10): AIスコア用atr_low_pctから分離。BTC実測 p25≒0.08。atr_pct<=この値でchop扱い
 CHOP_ATR_LOW_PCT_DEFAULT = 0.08
+# ATRベースTP/SL(2026-06-12): 固定SL-0.14%がATR中央値≈0.10%の1.3倍でノイズ狩りされる構造欠陥の修正。
+# 5年バックテスト(trading_knowledge/06 検証4)でATR-SL×2.0が年次WF 5/5年通過。既定0=従来の固定TP/SLと完全同一。
+# Shadow先行検証用(CONTROL_shadow.csvでのみ有効化)。LIVEへの適用は検証後に別途承認。
+ATR_SL_MULTIPLIER_DEFAULT = 0.0   # SL=-(ATR%×倍率)。固定sl_pctよりワイド(より負)の時のみ採用(only-widen)
+ATR_TP_MULTIPLIER_DEFAULT = 0.0   # TP=ATR%×倍率。固定TPより大きい時のみ採用(R:R維持。sl=2.0ならtp=4.0でR:R2:1)
 TECH_AI_BOOST_DEFAULT = 0.14
 TECH_AI_PENALTY_DEFAULT = 0.18
 CHART_PATTERN_ENABLED_DEFAULT = True
@@ -986,6 +991,8 @@ class Cfg:
     tp_buy_pct: float = TP_BUY_PCT_DEFAULT
     tp_sell_pct: float = TP_SELL_PCT_DEFAULT
     sl_pct: float = SL_PCT_DEFAULT
+    atr_sl_multiplier: float = ATR_SL_MULTIPLIER_DEFAULT
+    atr_tp_multiplier: float = ATR_TP_MULTIPLIER_DEFAULT
     win_min: int = WIN_MIN_DEFAULT
 
     # filters
@@ -1237,6 +1244,8 @@ def build_runtime_config(control: Dict[str, str], ai_model: Dict[str, Any]) -> C
     cfg.tp_buy_pct = _safe_float(control.get("tp_buy_pct"), TP_BUY_PCT_DEFAULT)
     cfg.tp_sell_pct = _safe_float(control.get("tp_sell_pct"), TP_SELL_PCT_DEFAULT)
     cfg.sl_pct = _safe_float(control.get("sl_pct"), SL_PCT_DEFAULT)
+    cfg.atr_sl_multiplier = max(0.0, _safe_float(control.get("atr_sl_multiplier"), ATR_SL_MULTIPLIER_DEFAULT))
+    cfg.atr_tp_multiplier = max(0.0, _safe_float(control.get("atr_tp_multiplier"), ATR_TP_MULTIPLIER_DEFAULT))
     cfg.win_min = _safe_int(control.get("win_min"), WIN_MIN_DEFAULT)
 
     cfg.spread_limit_pct = _safe_float(control.get("spread_limit_pct"), SPREAD_LIMIT_PCT_DEFAULT)
@@ -4416,6 +4425,41 @@ def resolve_entry_tp_pct(cfg: Cfg, side: str, effective_stage: str) -> float:
 # -------------------------
 # TP/SL and best_fav
 # -------------------------
+def resolve_atr_tp_sl(cfg: Cfg, state: Dict[str, Any], base_tp_pct: float) -> Tuple[float, float, str]:
+    """ATRベースTP/SL(2026-06-12)。atr_sl_multiplier>0 で SL=-(ATR%×sl_mult) を
+    固定sl_pctよりワイド(より負)の時のみ採用(only-widen=ノイズ狩り回避)。
+    atr_tp_multiplier>0 で TP=ATR%×tp_mult を base_tp より大きい時のみ採用(R:R維持)。
+    既定0=従来の固定TP/SLと完全同一。検証: trading_knowledge/06 検証4(5年・年次WF5/5通過)。
+    返り値: (tp_pct, sl_pct, note)。note空=ATR調整なし。"""
+    tp_pct = float(base_tp_pct)
+    sl_pct = float(cfg.sl_pct)
+    sl_mult = max(0.0, float(getattr(cfg, "atr_sl_multiplier", 0.0) or 0.0))
+    tp_mult = max(0.0, float(getattr(cfg, "atr_tp_multiplier", 0.0) or 0.0))
+    if sl_mult <= 0 and tp_mult <= 0:
+        return tp_pct, sl_pct, ""
+    try:
+        hist = _get_ltp_tail(state, 0)
+        atr_pct = calc_atr_like_pct_from_series(hist, int(cfg.atr_n))
+    except Exception:
+        atr_pct = None
+    if atr_pct is None or float(atr_pct) <= 0:
+        return tp_pct, sl_pct, ""
+    a = float(atr_pct)
+    parts = []
+    if sl_mult > 0:
+        atr_sl = -(sl_mult * a)
+        if atr_sl < sl_pct:
+            sl_pct = round(atr_sl, 4)
+            parts.append(f"atr_sl={sl_pct}")
+    if tp_mult > 0:
+        atr_tp = tp_mult * a
+        if atr_tp > tp_pct:
+            tp_pct = round(atr_tp, 4)
+            parts.append(f"atr_tp={tp_pct}")
+    note = (f"atr_tp_sl atr_pct={round(a, 4)} " + " ".join(parts)) if parts else ""
+    return tp_pct, sl_pct, note
+
+
 def calc_tp_sl_prices(side: str, entry_price: float, tp_pct: float, sl_pct: float) -> Tuple[float, float]:
     tp = tp_pct / 100.0
     sl = sl_pct / 100.0
@@ -7804,7 +7848,10 @@ def main() -> None:
                 entry_price = float(best_bid) if side == "BUY" else float(best_ask)
                 order_size = max(float(cfg.lot), 0.0)
                 tp_pct = resolve_entry_tp_pct(cfg, side, effective_stage)
-                tp_price, sl_price = calc_tp_sl_prices(side, entry_price, tp_pct, cfg.sl_pct)
+                tp_pct, effective_sl_pct, atr_tpsl_note = resolve_atr_tp_sl(cfg, state, tp_pct)
+                if atr_tpsl_note:
+                    print(f"[atr_tp_sl] {atr_tpsl_note}")
+                tp_price, sl_price = calc_tp_sl_prices(side, entry_price, tp_pct, effective_sl_pct)
                 expiry_time = (now + timedelta(minutes=int(cfg.win_min))).strftime("%Y-%m-%d %H:%M:%S")
 
                 day8 = now.strftime("%Y%m%d")
@@ -7823,7 +7870,7 @@ def main() -> None:
                     "ma_fast": ma_fast,
                     "ma_slow": ma_slow,
                     "tp_pct": float(tp_pct),
-                    "sl_pct": float(cfg.sl_pct),
+                    "sl_pct": float(effective_sl_pct),
                     "timeout_mode": _safe_str(cfg.timeout_mode, TIMEOUT_MODE_DEFAULT),
                     "max_extend_count": int(cfg.max_extend_count),
                     "extend_min": int(cfg.extend_min),
@@ -7849,7 +7896,7 @@ def main() -> None:
 
                 paper_note = (
                     f"tp={round(tp_price,1)} sl={round(sl_price,1)} win_used={int(cfg.win_min)}m "
-                    f"exp={expiry_time} tp_pct={tp_pct} sl_pct={cfg.sl_pct} timeout_mode={cfg.timeout_mode}"
+                    f"exp={expiry_time} tp_pct={tp_pct} sl_pct={effective_sl_pct} timeout_mode={cfg.timeout_mode}"
                 )
                 paper_note = _append_note(paper_note, mr_paper_note)
                 paper_note = _append_note(paper_note, mr_note_full)
@@ -8291,7 +8338,10 @@ def main() -> None:
         )
 
     tp_pct = resolve_entry_tp_pct(cfg, side, effective_stage)
-    tp_price, sl_price = calc_tp_sl_prices(side, entry_price, tp_pct, cfg.sl_pct)
+    tp_pct, effective_sl_pct, atr_tpsl_note = resolve_atr_tp_sl(cfg, state, tp_pct)
+    if atr_tpsl_note:
+        print(f"[atr_tp_sl] {atr_tpsl_note}")
+    tp_price, sl_price = calc_tp_sl_prices(side, entry_price, tp_pct, effective_sl_pct)
     expiry_time = (now + timedelta(minutes=int(cfg.win_min))).strftime("%Y-%m-%d %H:%M:%S")
 
     day8 = now.strftime("%Y%m%d")
@@ -8344,7 +8394,7 @@ def main() -> None:
 
         # config snapshot
         "tp_pct": float(tp_pct),
-        "sl_pct": float(cfg.sl_pct),
+        "sl_pct": float(effective_sl_pct),
         "timeout_mode": _safe_str(cfg.timeout_mode, TIMEOUT_MODE_DEFAULT),
         "max_extend_count": int(cfg.max_extend_count),
         "extend_min": int(cfg.extend_min),
@@ -8457,7 +8507,7 @@ def main() -> None:
     # (15m) PAPER log
     note = (
         f"tp={round(tp_price,1)} sl={round(sl_price,1)} win_used={int(cfg.win_min)}m "
-        f"exp={expiry_time} tp_pct={tp_pct} sl_pct={cfg.sl_pct} timeout_mode={cfg.timeout_mode}"
+        f"exp={expiry_time} tp_pct={tp_pct} sl_pct={effective_sl_pct} timeout_mode={cfg.timeout_mode}"
     )
     if effective_stage == "CANARY" and float(cfg.canary_tp_scale) < 1.0:
         note = _append_note(note, f"canary_tp_scale={cfg.canary_tp_scale}")

@@ -1,7 +1,7 @@
 # Ouroboros Trading Spec Table
 
-最終更新: 2026-06-10 JST（chop再較正＝専用ATR閾値 chop_atr_low_pct=0.08 へ移行・無発火問題を解消・observe先行）  
-実装バージョン: `bot.py=v2026.06.10.1`（chop再較正: 旧atr_regime方式[AIスコア用atr_low_pct=0.04]がBTC実測min=0.0526を下回り無発火→専用 chop_atr_low_pct=0.08[p25] へ分離・`atr_pct<=0.08`で直接判定。observe先行→検証後block化。fsync堅牢化=NUL破損根本対策／TP Trail継続）/ `ibkr_bot.py=v2026.06.04.1`（投資円卓会議統合・コツコツドカン対策・監視銘柄40件／詳細は IBKR_AGENT_SPEC.md）/ `OUROBOROS_BOT_VERSION=2026.06.10.1` / インフラ安全性 2026-04-22 / 監視・学習インフラ 2026-04-25  
+最終更新: 2026-06-12 JST（ATRベースTP/SLをgated実装＝Shadow先行検証開始。LIVE既定0で完全不変）  
+実装バージョン: `bot.py=v2026.06.12.1`（**ATRベースTP/SL追加**: `atr_sl_multiplier`/`atr_tp_multiplier`[既定0=従来の固定TP/SLと完全同一]。SL=-(ATR%×倍率)を固定sl_pctよりワイドの時のみ採用[only-widen]・TPはR:R維持で連動。5年バックテスト[trading_knowledge/06 検証4]で固定SL-0.14%は5年-137%と一貫負け→ATR-SL×2.0で+134%・年次WF5/5通過。**CONTROL_shadow.csvのみ sl=2.0/tp=4.0 有効化＝Shadow先行検証・LIVEは未設定で不変**。検証後にLIVE適用を別途承認。chop再較正[chop_atr_low_pct=0.08 observe]継続）/ `ibkr_bot.py=v2026.06.11.4`（ATR-SL有効化済+トレンド整合observe／詳細は IBKR_AGENT_SPEC.md）/ `OUROBOROS_BOT_VERSION=2026.06.12.1` / インフラ安全性 2026-04-22 / 監視・学習インフラ 2026-04-25  
 ツールバージョン（session31追加）: `state_schema_check.py`（新規: drift/weeklyスキーマバリデータ）/ `shadow_promotion_report.py`（Shadow SL reversal_wrap/profit_miss分類追加）  
 ダッシュボードバージョン: Step1〜4+追加A〜E完了 / 2026-05-16 opsStatusCard compact化・Watchlist改善・IBKRサブエージェントパネル再設計  
 特徴量スキーマ: `OUROBOROS_FEATURE_SCHEMA_VERSION=ohlc-chart-pattern-quality-market-phase-transition-near-tp-aiba-phase-fallback-mfe-mae-fib-elliott-v1`
