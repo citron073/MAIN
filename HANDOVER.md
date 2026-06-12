@@ -1,6 +1,6 @@
 # Ouroboros Handover (Detailed)
 
-最終更新: 2026-05-13 contract-split-stale-review (JST)  
+最終更新: 2026-06-12 audit-result-unknown-fix (JST)  
 目的: 別トークでも同じ品質で運用・改修を継続できるよう、現状と運用ルールを固定化する。
 
 ## 1. まず最重要（事故防止）
@@ -34,6 +34,17 @@
 - `HANDOVER.json` の `versions` は上記実体に合わせて更新する
 - 売買ロジック実装表は `MAIN/docs/OUROBOROS_TRADING_SPEC_TABLE.md` を参照する
 - stale運用成果物の棚卸しは `python3 tools/stale_artifact_review.py` を正規コマンドとし、`review_out/stale_artifact_review_latest.json` をダッシュボード・整理判断の基準にする
+
+### 3-0S. 2026-06-12 audit RESULT_UNKNOWN誤検知解消（PAPER_EXIT_EARLY_ADVERSE許容化）
+- 事象: VM `run.log` に起動毎 `[ERROR] audit contains ERROR issue: RESULT_UNKNOWN Unknown result 'PAPER_EXIT_EARLY_ADVERSE'` → `run_check.sh ok=False`
+- 原因: VM `MAIN/audit.py` が 2026-04-22 旧版（独自 `RESULT_ALLOWED` に `PAPER_EXIT_EARLY_ADVERSE` 欠落）のまま差し替え漏れ。git main の contract import 版（`ouroboros_contract.RESULT_ALLOWED` は登録済み・旧リストの完全上位集合・`LOG_FIELDS` 一致）が未配備だった
+- 対処: VM上にバックアップ `audit.py.bak.20260612` を作成し、git main 版 `audit.py` をデプロイ。`py_compile` OK
+- 検証: `run_check.sh ok=True`（issues 0）/ `PAPER_EXIT_EARLY_ADVERSE` 実在日 20260603・20260611 の個別 audit も issues=0 / `ouroboros-bot` active・`NRestarts=0`（audit.py は実行毎読み込みのため bot 再起動不要）
+- 記録: スペック表 `docs/OUROBOROS_TRADING_SPEC_TABLE.md` 実装状況に追記（MAIN commit `5249ae5` / 親 pointer `e585993`）+ Notion Knowledge 記録済み
+- **未実施事項（持ち越し）**:
+  1. **git push 未実施**: MAIN `5249ae5` → `citron073/MAIN` main / 親リポジトリ `e585993`。push はたにさん承認後に MAIN → 親の順で実行
+  2. **VMバックアップ掃除**: `/home/ubuntu/trading_bot/MAIN/audit.py.bak.20260612` を残置中。数日安定稼働を確認後に削除可
+  3. **run.log の自然更新確認**: 末尾の ERROR 行は修正前起動時の履歴。次回 runner 再起動/定期チェックで `ok=True` 出力に置き換わることを目視確認すると完全クローズ（手動実行では ok=True 確認済み）
 
 ### 3-0R. 2026-05-13 contract単一起点 / IBKR adapter分離 / stale成果物レビュー
 - `MAIN/ouroboros_contract.py` を追加。`OUROBOROS_BOT_VERSION` / `OUROBOROS_FEATURE_SCHEMA_VERSION` / `TRADE_LOG_FIELDS` / `RESULT_ALLOWED` / audit issue builder をここに集約した
