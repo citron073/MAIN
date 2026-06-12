@@ -105,7 +105,7 @@ def _load_today_session(logs_dir: Path, day8: str) -> Dict[str, Any]:
             en = entry["note"]
             ex_note = _parse_note(note)
 
-            outcome = "TP" if result in ("PAPER_EXIT_TP", "LIVE_EXIT_TP") else ("SL" if result in ("PAPER_EXIT_SL", "LIVE_EXIT_SL") else "TIMEOUT")
+            outcome = "TP" if result.endswith("_TP") else ("SL" if (result.endswith("_SL") or "STOPFILL" in result) else "TIMEOUT")
             ret_pct = _safe_float(ex_note.get("current_fav") or ex_note.get("best_fav") or 0.0)
             entry_price = _safe_float(en.get("entry_price") or entry["row"].get("price") or 0.0)
             shares = int(_safe_float(row.get("lot") or 1))

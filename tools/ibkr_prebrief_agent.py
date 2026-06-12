@@ -96,18 +96,18 @@ def _load_trade_pairs(logs_dir: Path, lookback_days: int) -> List[Dict[str, Any]
             m = re.search(r"pos_id=(\S+)", note)
             pos_id = m.group(1) if m else ""
 
-            if result == "PAPER" and pos_id:
+            if result in ("PAPER", "LIVE") and pos_id:  # LIVE移行後のラベルに対応(2026-06-13)
                 entries[pos_id] = {"row": row, "note": _parse_note(note), "day": day}
 
-            elif result.startswith("PAPER_EXIT") and pos_id and pos_id in entries:
+            elif (result.startswith("PAPER_EXIT") or result.startswith("LIVE_EXIT_")) and pos_id and pos_id in entries:
                 entry = entries.pop(pos_id)
                 en = entry["note"]
                 ex_note = _parse_note(note)
 
-                if result == "PAPER_EXIT_TP":
+                if result.endswith("_TP"):
                     outcome = "TP"
-                elif result == "PAPER_EXIT_SL":
-                    outcome = "SL"
+                elif result.endswith("_SL") or "STOPFILL" in result:
+                    outcome = "SL"  # broker逆指値約定もSL扱い
                 else:
                     outcome = "TIMEOUT"
 

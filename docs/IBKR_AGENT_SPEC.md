@@ -89,8 +89,8 @@ Mac (JST / ローカル)
 | **ファイル** | `tools/ibkr_prebrief_agent.py` |
 | **LaunchAgent** | `com.ouroboros.ibkr.prebrief` |
 | **plist** | `~/Library/LaunchAgents/com.ouroboros.ibkr.prebrief.plist` |
-| **スケジュール** | 毎日 22:15 JST（US市場 22:35 開場 20分前） |
-| **入力** | `.local_llm/ibkr/logs/ibkr_trade_log_*.csv`（過去14日） |
+| **スケジュール** | 毎日 **20:50 JST**（Gatewayログインと同時刻・2026-06-13変更） |
+| **入力** | VM実行時: `--logs-dir /home/ubuntu/trading_bot/logs`(systemd unitで指定・2026-06-13修正) / Mac実行時: `.local_llm/ibkr/logs/`（過去14日）。**LIVE/LIVE_EXIT_*ラベル対応済み**(旧PAPER専用パーサが取引0件と誤認・STOPFILLはSL扱い) |
 | **出力** | `.local_llm/ibkr/prebrief/prebrief_YYYYMMDD_HHMMSS.json`, `.local_llm/ibkr/prebrief/prebrief_latest.json` |
 | **ログ** | `ci_logs/ibkr_prebrief_out.log`, `ci_logs/ibkr_prebrief_err.log` |
 | **LLM** | Ollama `qwen2.5:0.5b` @ `http://127.0.0.1:11434`（VM local）。1.5b→0.5bへ変更+ウォームアップ+timeout420s+num_predict=256上限（2026-06-12: 1.5bはVMのCPUで240s超応答不能、さらに取引時間帯のCPU競合下では生成無制限だと300s超のため生成上限化。取引時間帯の実条件で実走検証済み） |
@@ -115,7 +115,7 @@ Mac (JST / ローカル)
 | **LaunchAgent** | `com.ouroboros.ibkr.review` |
 | **plist** | `~/Library/LaunchAgents/com.ouroboros.ibkr.review.plist` |
 | **スケジュール** | 毎日 07:05 JST（US市場 07:00 クローズ後5分） |
-| **入力** | `.local_llm/ibkr/logs/ibkr_trade_log_{today}.csv`（当日または前日） |
+| **入力** | VM実行時: `--logs-dir /home/ubuntu/trading_bot/logs`(2026-06-13修正) / Mac: `.local_llm/ibkr/logs/`（当日または前日）。STOPFILL=SL扱いに修正 |
 | **出力** | `.local_llm/ibkr/review/review_YYYYMMDD.json`, `.local_llm/ibkr/review/review_latest.json` |
 | **ログ** | `ci_logs/ibkr_review_out.log`, `ci_logs/ibkr_review_err.log` |
 | **LLM** | Ollama `qwen2.5:0.5b` @ `http://127.0.0.1:11434`（VM local）。1.5b→0.5bへ変更+ウォームアップ+timeout420s+num_predict=256上限（2026-06-12: 1.5bはVMのCPUで240s超応答不能、さらに取引時間帯のCPU競合下では生成無制限だと300s超のため生成上限化。取引時間帯の実条件で実走検証済み） |
