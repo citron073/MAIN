@@ -30,9 +30,16 @@ JST = timezone(timedelta(hours=9))
 
 # 検証済みパラメータ(固定・変更はWF再検証が条件 / 06 検証8・9)
 MARKETS = [
+    # crypto(20/10): 検証8 WF通過 / ETHは検証10 個別WF通過(+7.26/+0.36)
     {"key": "BTC", "symbol": "BTCUSDT", "source": "binance", "entry_n": 20, "exit_n": 10},
+    {"key": "ETH", "symbol": "ETHUSDT", "source": "binance", "entry_n": 20, "exit_n": 10},
+    # US(55/20): QQQ/SPY=検証8 / GLD,MSFT,NVDA,SMH=検証10 個別WFスクリーニング合格(両期間プラス)
     {"key": "QQQ", "symbol": "QQQ", "source": "ibkr", "entry_n": 55, "exit_n": 20},
     {"key": "SPY", "symbol": "SPY", "source": "ibkr", "entry_n": 55, "exit_n": 20},
+    {"key": "GLD", "symbol": "GLD", "source": "ibkr", "entry_n": 55, "exit_n": 20},
+    {"key": "MSFT", "symbol": "MSFT", "source": "ibkr", "entry_n": 55, "exit_n": 20},
+    {"key": "NVDA", "symbol": "NVDA", "source": "ibkr", "entry_n": 55, "exit_n": 20},
+    {"key": "SMH", "symbol": "SMH", "source": "ibkr", "entry_n": 55, "exit_n": 20},
 ]
 ATR_N = 14
 SL_ATR_MULT = 2.0
@@ -211,6 +218,15 @@ def _process_market(m: Dict[str, Any], bars: List[Dict[str, float]], state: Dict
     state["last_bar"][key] = bar_date
     if not sig:
         print(f"[swing] {key}: シグナルなし close={c:.2f} ch=[{ch_lo:.2f},{ch_hi:.2f}]")
+        return
+    max_pos = int(float(ctrl.get("swing_max_positions", "4")))
+    if len(state["positions"]) >= max_pos:
+        note = f"max_positions={max_pos}到達のためエントリー見送り sig={sig} close={c:.2f}"
+        print(f"[swing] {key}: {note}")
+        _append_log({"time": _now_jst().strftime("%Y-%m-%d %H:%M:%S"), "market": key,
+                     "side": sig, "event": "SKIP_MAX_POS", "price": round(c, 2),
+                     "size": 0, "sl": 0, "note": note})
+        _send_ntfy(f"[SWING] SKIP {key} {sig}", f"{key} {sig} シグナルあり、ただし同時ポジ上限{max_pos}で見送り")
         return
     atr = _atr(bars)
     if not atr:

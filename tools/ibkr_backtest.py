@@ -158,6 +158,7 @@ def _risk_stats(trades, key):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data-dir", default="data/us_stocks")
+    ap.add_argument("--only", default="", help="銘柄フィルタ: ファイル名先頭がこの文字列のCSVのみ対象(個別WFスクリーニング用)")
     ap.add_argument("--bar-min", type=int, default=5)
     ap.add_argument("--strategy", choices=["sma", "donchian"], default="sma",
                     help="エントリー信号: sma=SMAクロス(既定) / donchian=ドンチャン・ブレイクアウト(タートルズ型)")
@@ -188,6 +189,8 @@ def main() -> int:
 
     data_dir = ROOT / args.data_dir
     files = sorted(data_dir.glob("*.csv"))
+    if args.only:
+        files = [f for f in files if f.stem.split("_")[0] == args.only.upper()]
     if not files:
         print(f"[bt] データ無し: {data_dir} (先に ibkr_fetch_history.py を実行)")
         return 1

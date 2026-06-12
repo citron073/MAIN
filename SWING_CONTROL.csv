@@ -3,3 +3,4 @@ swing_risk_pct,1.0
 swing_equity_btc,10000
 swing_equity_qqq,10000
 swing_equity_spy,10000
+swing_max_positions,4
