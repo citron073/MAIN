@@ -127,6 +127,34 @@ def _stats(trades, key):
     return {"n": n, "wr": wr, "exp": exp, "total": sum(rets)}
 
 
+def _risk_stats(trades, key):
+    """時系列順の等ウェイト%累積でリスク指標を計測: 最大DD(%pt)・最大連敗・最長アンダーウォーター期間(取引数)"""
+    seq = sorted(trades, key=lambda t: t["time"])
+    cum = 0.0
+    peak = 0.0
+    max_dd = 0.0
+    streak = 0
+    max_streak = 0
+    uw = 0
+    max_uw = 0
+    for t in seq:
+        r = t[key]["ret"]
+        cum += r
+        if cum > peak:
+            peak = cum
+            uw = 0
+        else:
+            uw += 1
+            max_uw = max(max_uw, uw)
+        max_dd = max(max_dd, peak - cum)
+        if r <= 0:
+            streak += 1
+            max_streak = max(max_streak, streak)
+        else:
+            streak = 0
+    return {"max_dd": max_dd, "max_streak": max_streak, "max_uw": max_uw}
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data-dir", default="data/us_stocks")
@@ -239,7 +267,7 @@ def main() -> int:
             if f_ret <= 0 and a_ret > 0:
                 saved_by_atr += 1
             trades.append({
-                "sym": sym, "side": sig, "atr_pct": round(atr_pct, 3),
+                "sym": sym, "side": sig, "time": bars[i]["time"], "atr_pct": round(atr_pct, 3),
                 "fixed": {"out": f_out, "ret": round(f_ret - args.cost_rt_pct, 4)},
                 "atr": {"out": a_out, "ret": round(a_ret - args.cost_rt_pct, 4), "sl": round(b_sl, 3), "tp": round(b_tp, 3)},
             })
@@ -266,6 +294,8 @@ def main() -> int:
         print(f"{'構成':<8}{'件数':>6}{'勝率%':>9}{'期待値%/trade':>15}{'累計%':>10}")
         print(f"{'現行固定':<8}{fs['n']:>6}{fs['wr']:>9.1f}{fs['exp']:>15.4f}{fs['total']:>10.2f}")
         print(f"{'B案ATR':<8}{as_['n']:>6}{as_['wr']:>9.1f}{as_['exp']:>15.4f}{as_['total']:>10.2f}")
+        rk = _risk_stats(trades, "atr")
+        print(f"リスク(B案): 最大DD={rk['max_dd']:.2f}%pt  最大連敗={rk['max_streak']}  最長停滞={rk['max_uw']}取引")
         print("-" * 64)
         print(f"★ 現行SLで損切り→B案SLなら非負けに転じたトレード: {saved_by_atr}件 "
               f"({saved_by_atr/len(trades)*100:.1f}%)" if trades else "")
