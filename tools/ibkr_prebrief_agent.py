@@ -26,7 +26,7 @@ OUT_DIR = MAIN_DIR / ".local_llm" / "ibkr" / "prebrief"
 LATEST_PATH = OUT_DIR / "prebrief_latest.json"
 
 OLLAMA_BASE_URL = "http://127.0.0.1:11434"
-OLLAMA_TIMEOUT_SEC = 300
+OLLAMA_TIMEOUT_SEC = 420
 DEFAULT_MODEL = "qwen2.5:0.5b"
 DEFAULT_LOOKBACK_DAYS = 14
 MAX_CHARS = 700
@@ -243,7 +243,9 @@ def _call_ollama(prompt: str, model: str, timeout_sec: int) -> str:
             pass
     except Exception:
         pass
-    payload = json.dumps({"model": model, "prompt": prompt, "stream": False},
+    # num_predict上限(2026-06-12): 生成長が無制限だと取引時間帯のCPU競合下で300s超→タイムアウトするため上限化
+    payload = json.dumps({"model": model, "prompt": prompt, "stream": False,
+                          "options": {"num_predict": 256}},
                          ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(
         f"{OLLAMA_BASE_URL}/api/generate",

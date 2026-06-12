@@ -93,7 +93,7 @@ Mac (JST / ローカル)
 | **入力** | `.local_llm/ibkr/logs/ibkr_trade_log_*.csv`（過去14日） |
 | **出力** | `.local_llm/ibkr/prebrief/prebrief_YYYYMMDD_HHMMSS.json`, `.local_llm/ibkr/prebrief/prebrief_latest.json` |
 | **ログ** | `ci_logs/ibkr_prebrief_out.log`, `ci_logs/ibkr_prebrief_err.log` |
-| **LLM** | Ollama `qwen2.5:0.5b` @ `http://127.0.0.1:11434`（VM local）。1.5b→0.5bへ変更+ウォームアップ+timeout300s（2026-06-12: 1.5bはVMのCPUで240s超応答不能=毎回タイムアウトだったため） |
+| **LLM** | Ollama `qwen2.5:0.5b` @ `http://127.0.0.1:11434`（VM local）。1.5b→0.5bへ変更+ウォームアップ+timeout420s+num_predict=256上限（2026-06-12: 1.5bはVMのCPUで240s超応答不能、さらに取引時間帯のCPU競合下では生成無制限だと300s超のため生成上限化。取引時間帯の実条件で実走検証済み） |
 | **ntfy** | 取引データ≥3件: 統計+LLM予測を送信。データ不足: 「データ不足」通知のみ |
 | **prebrief JSON fields** | `generated_at`, `lookback_days`, `model`, `trade_count`, `stats_overall`, `llm_text`, `status` |
 | **最低取引数** | 3件（`MIN_TRADES = 3`）未満はLLM呼び出しスキップ |
@@ -118,7 +118,7 @@ Mac (JST / ローカル)
 | **入力** | `.local_llm/ibkr/logs/ibkr_trade_log_{today}.csv`（当日または前日） |
 | **出力** | `.local_llm/ibkr/review/review_YYYYMMDD.json`, `.local_llm/ibkr/review/review_latest.json` |
 | **ログ** | `ci_logs/ibkr_review_out.log`, `ci_logs/ibkr_review_err.log` |
-| **LLM** | Ollama `qwen2.5:0.5b` @ `http://127.0.0.1:11434`（VM local）。1.5b→0.5bへ変更+ウォームアップ+timeout300s（2026-06-12: 1.5bはVMのCPUで240s超応答不能=毎回タイムアウトだったため） |
+| **LLM** | Ollama `qwen2.5:0.5b` @ `http://127.0.0.1:11434`（VM local）。1.5b→0.5bへ変更+ウォームアップ+timeout420s+num_predict=256上限（2026-06-12: 1.5bはVMのCPUで240s超応答不能、さらに取引時間帯のCPU競合下では生成無制限だと300s超のため生成上限化。取引時間帯の実条件で実走検証済み） |
 | **ntfy** | 取引あり: WR/P&L/内訳+LLMテキスト。取引なし: no trades通知 |
 | **review JSON fields** | `generated_at`, `day8`, `summary{n, wr, tp_n, sl_n, timeout_n, total_pnl_usd}`, `llm_text`, `status` |
 | **P&L計算** | `entry_price × shares` vs `exit_price × shares`（notesフィールドからパース） |
