@@ -55,7 +55,8 @@
   - [ ] P2b block化（ライブobserve検証後・最優先候補）/ A・P2a block化（データ蓄積後）
 - [~] **BTC横展開**（2026-06-12）: KB 07/08作成✅・5年バックテスト✅（[06](06_backtest_results.md)検証4）
   - 発見: **ATR-SLはBTCでも5/5年で固定SLに勝つ（移植有力）** / **トレンド整合はBTCでは逆効果（移植不可）**＝アジア薄商い帯は平均回帰優位
-  - [ ] BTC bot へのATR-SL導入提案（**LIVE実弾稼働中のため🟡慎重に**・observe先行）
+  - [x] BTC bot ATR-SL: Shadow先行検証 開始 ✅ 2026-06-12（LIVE不変）
+- [x] **日足スイングbot Phase A** ✅ 2026-06-13: 検証6-9(コスト/WF/リスク/分散)→[SWING_BOT_DESIGN.md](../SWING_BOT_DESIGN.md)承認→`swing_bot.py` PAPER稼働(BTC20/10+QQQ/SPY55/20・timer 09:15 JST)。**「着実に勝つ」本線**。Phase B=4-8週実績照合
 
 ## 使い方
 - 新しい売買ルール/パラメータを検討する前に、該当KBの「bot紐付けセクション」を必ず読む。
