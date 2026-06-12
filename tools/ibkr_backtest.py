@@ -117,6 +117,8 @@ def main() -> int:
                     help="エントリーを許可する時刻上限(この時を含む。-1=無効)")
     ap.add_argument("--date-from", default="", help="この日付(YYYY-MM-DD)以降のバーのみ")
     ap.add_argument("--date-to", default="", help="この日付(YYYY-MM-DD)以前のバーのみ")
+    ap.add_argument("--cost-rt-pct", type=float, default=0.0,
+                    help="往復コスト%%(スプレッド+手数料+スリッページ合算)。全トレードのretから控除しネット成績を出す")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
 
@@ -198,8 +200,8 @@ def main() -> int:
                 saved_by_atr += 1
             trades.append({
                 "sym": sym, "side": sig, "atr_pct": round(atr_pct, 3),
-                "fixed": {"out": f_out, "ret": f_ret},
-                "atr": {"out": a_out, "ret": a_ret, "sl": round(b_sl, 3), "tp": round(b_tp, 3)},
+                "fixed": {"out": f_out, "ret": round(f_ret - args.cost_rt_pct, 4)},
+                "atr": {"out": a_out, "ret": round(a_ret - args.cost_rt_pct, 4), "sl": round(b_sl, 3), "tp": round(b_tp, 3)},
             })
             if args.verbose:
                 print(f"{sym} {sig} atr%={atr_pct:.2f} | 現行 {f_out} {f_ret:+.3f}% | "
@@ -217,7 +219,7 @@ def main() -> int:
     print(f"米株バックテスト結果  銘柄={len(files)}  エントリー={len(trades)}  "
           f"(BUY={side_n['BUY']} SELL={side_n['SELL']})  足={args.bar_min}分")
     strat = f"Donchian{args.donchian_n}" if args.strategy == "donchian" else f"SMA{args.fast}/{args.slow}"
-    print(f"設定: {strat}  現行SL-{args.fixed_sl}/TP+{args.fixed_tp}  "
+    print(f"設定: {strat}  現行SL-{args.fixed_sl}/TP+{args.fixed_tp}  往復コスト={args.cost_rt_pct}%  "
           f"B案 SL=ATR%×{args.sl_mult}(min-{args.fixed_sl}) TP=SL×{args.rr}  max_hold={args.max_hold}")
     print("-" * 64)
     if fs and as_:
