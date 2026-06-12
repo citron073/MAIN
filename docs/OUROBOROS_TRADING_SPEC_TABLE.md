@@ -73,6 +73,7 @@
 | Dashboard opsStatusCard簡略化 | 実装済み（2026-05-16） | `tools/unified_dashboard.html`, `opsStatusCard()` | compact=true: 6項目pill表示（BTC Bot/IBKR API/Dashboard/IB Gateway/7日稼働率/GW Watch）/ compact=false: 12行→9行（VM Tunnel・VNC・clientId診断行を削除）| 警告バナー: 接続済み時は非表示。`ibkr?.connected`を優先チェックし、smoke_neededでも接続中なら"接続OK"表示 |
 | Dashboard Watchlist改善 | 実装済み（2026-05-16） | `tools/unified_dashboard.html`, `renderOverview()` watchlist section | ↺リフレッシュボタン追加 / 未取得時はスケルトン表示（"---"）/ フッター3状態（更新X分前/取得中/取得エラー+再試行ボタン）| 価格テキストを24h変化率に連動して色付け（正=green/負=red/選択中=accent） |
 | Dashboard IBKRサブエージェントパネル再設計 | 実装済み（2026-05-16） | `tools/unified_dashboard.html`, `_renderIbkrSubagentPanel()` | エージェントテーブル5列→3列（スケジュール・役割列を削除、ロールをサブタイトルへ）/ staleバナー1行化 / Gateway Watch・VM Syncカードをheader+pill形式にコンパクト化 / プリブリーフ・レビューはLLMテキストなし時にコンパクトノート表示 | ログsummary内の折り畳みに最終行プレビューを追加（展開なしで内容確認可） |
+| audit許容result統一（RESULT_UNKNOWN誤検知解消） | 実装済み（2026-06-12） | `audit.py`（VMへgit版を再デプロイ）, `ouroboros_contract.py: RESULT_ALLOWED` | run.log の `[ERROR] audit contains ERROR issue: RESULT_UNKNOWN Unknown result 'PAPER_EXIT_EARLY_ADVERSE'` 解消。run_check.sh `ok=True` | VM audit.py が2026-04-22の旧版（独自RESULT_ALLOWEDに`PAPER_EXIT_EARLY_ADVERSE`欠落）のまま差し替え漏れ。git main の契約import版（契約は同resultを登録済み・旧リストの完全上位集合）をデプロイ。バックアップ `audit.py.bak.20260612`。6/3・6/11・6/12ログで issues=0 確認・bot無再起動（NRestarts=0） |
 
 ## 調査指示との照合
 
