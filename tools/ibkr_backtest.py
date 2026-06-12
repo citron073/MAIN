@@ -82,6 +82,40 @@ def _simulate_exit(bars, entry_idx, side, entry, sl_pct, tp_pct, max_hold):
     return "TIMEOUT", round(ret, 4), end - entry_idx, mae, mfe
 
 
+def _simulate_exit_trailing(bars, entry_idx, side, entry, sl_pct, ch_n, max_hold):
+    """タートル式トレーリング出口: 初期ハードSL(ATR由来)と、Nバー逆側極値のトレーリングチャネルの
+    タイトな方をストップとして追従。TPキャップなし=勝ちを伸ばす。outcome in {TRAIL,SL,TIMEOUT}"""
+    sl_frac = sl_pct / 100.0  # 負
+    hard = entry * (1 + sl_frac) if side == "BUY" else entry * (1 - sl_frac)
+    mae = 0.0
+    mfe = 0.0
+    end = min(entry_idx + max_hold, len(bars) - 1)
+    for j in range(entry_idx + 1, end + 1):
+        b = bars[j]
+        prior = bars[max(0, j - ch_n): j]
+        if side == "BUY":
+            ch = min(p["low"] for p in prior)
+            stop = max(hard, ch)
+            fav = (b["high"] - entry) / entry * 100
+            adv = (b["low"] - entry) / entry * 100
+        else:
+            ch = max(p["high"] for p in prior)
+            stop = min(hard, ch)
+            fav = (entry - b["low"]) / entry * 100
+            adv = (entry - b["high"]) / entry * 100
+        mfe = max(mfe, fav)
+        mae = min(mae, adv)
+        if side == "BUY" and b["low"] <= stop:
+            px = b["open"] if b["open"] < stop else stop  # 窓開けはopen約定(保守)
+            return ("TRAIL" if stop > hard else "SL"), round((px - entry) / entry * 100, 4), j - entry_idx, mae, mfe
+        if side == "SELL" and b["high"] >= stop:
+            px = b["open"] if b["open"] > stop else stop
+            return ("TRAIL" if stop < hard else "SL"), round((entry - px) / entry * 100, 4), j - entry_idx, mae, mfe
+    last = bars[end]["close"]
+    ret = (last - entry) / entry * 100 if side == "BUY" else (entry - last) / entry * 100
+    return "TIMEOUT", round(ret, 4), end - entry_idx, mae, mfe
+
+
 def _stats(trades, key):
     rets = [t[key]["ret"] for t in trades]
     wins = [r for r in rets if r > 0]
@@ -117,6 +151,8 @@ def main() -> int:
                     help="エントリーを許可する時刻上限(この時を含む。-1=無効)")
     ap.add_argument("--date-from", default="", help="この日付(YYYY-MM-DD)以降のバーのみ")
     ap.add_argument("--date-to", default="", help="この日付(YYYY-MM-DD)以前のバーのみ")
+    ap.add_argument("--exit-channel-n", type=int, default=0,
+                    help="トレーリング出口(タートル式): 直近Nバー逆側ブレイクで決済。>0でB案レグのTPを廃止しトレーリング+初期ATR-SLに置換")
     ap.add_argument("--cost-rt-pct", type=float, default=0.0,
                     help="往復コスト%%(スプレッド+手数料+スリッページ合算)。全トレードのretから控除しネット成績を出す")
     ap.add_argument("--verbose", action="store_true")
@@ -194,8 +230,12 @@ def main() -> int:
             # B案構成(ATR-SL/R:R維持TP)
             b_sl = max(args.fixed_sl, args.sl_mult * atr_pct)  # 固定より狭くしない(only-widen)
             b_tp = b_sl * args.rr
-            a_out, a_ret, a_hold, a_mae, a_mfe = _simulate_exit(
-                bars, i, sig, entry, -b_sl, b_tp, args.max_hold)
+            if args.exit_channel_n > 0:
+                a_out, a_ret, a_hold, a_mae, a_mfe = _simulate_exit_trailing(
+                    bars, i, sig, entry, -b_sl, args.exit_channel_n, args.max_hold)
+            else:
+                a_out, a_ret, a_hold, a_mae, a_mfe = _simulate_exit(
+                    bars, i, sig, entry, -b_sl, b_tp, args.max_hold)
             if f_ret <= 0 and a_ret > 0:
                 saved_by_atr += 1
             trades.append({
