@@ -248,7 +248,9 @@
 **⚠️ ボーダー除外**: AAPL(後半+0.04)・TSLA(後半+0.02)＝実質ゼロで頑健性なし
 **❌ 不合格**: IWM/TLT/EEM/XLE/DIA/AMZN/META/GOOGL/XLK/XLV/XLF（片側マイナス）
 
-→ swing botを**8市場体制**へ（BTC/ETH 20/10＋QQQ/SPY/GLD/MSFT/NVDA/SMH 55/20）。`swing_max_positions=4`で同時露出を制限（NVDA×SMH相関対策含む）。
+**追補(同日)**: $100未満の6銘柄(F/BAC/OXY/FCX/NFLX/NEE)も同プロトコルで審査→**NFLXのみ合格**(+1.51/+5.34%/t)、他5社は後半マイナス(バリュー/景気循環系は2021年以降トレンド不継続)。NFLX($80)は超小口運用の現実解: 規律内最小口座$450(1株・SL≈$4.5=1%)、手数料はtiered($0.7往復=0.87%)ならエッジ内。
+
+→ swing botを**9市場体制**へ（BTC/ETH 20/10＋QQQ/SPY/GLD/MSFT/NVDA/SMH 55/20）。`swing_max_positions=4`で同時露出を制限（NVDA×SMH相関対策含む）。
 注意: スクリーニング後採用には選択バイアスが残る（同一設定固定＋両期間要求で緩和済みだが、Phase B実績照合が最終判定）。
 
 ## 再現コマンド

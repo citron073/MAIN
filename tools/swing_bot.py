@@ -40,6 +40,7 @@ MARKETS = [
     {"key": "MSFT", "symbol": "MSFT", "source": "ibkr", "entry_n": 55, "exit_n": 20},
     {"key": "NVDA", "symbol": "NVDA", "source": "ibkr", "entry_n": 55, "exit_n": 20},
     {"key": "SMH", "symbol": "SMH", "source": "ibkr", "entry_n": 55, "exit_n": 20},
+    {"key": "NFLX", "symbol": "NFLX", "source": "ibkr", "entry_n": 55, "exit_n": 20},  # 検証10追補: WF+1.51/+5.34・$100未満で唯一合格
 ]
 ATR_N = 14
 SL_ATR_MULT = 2.0
