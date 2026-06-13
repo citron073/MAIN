@@ -174,6 +174,9 @@ def main() -> int:
     ap.add_argument("--min-atr-pct", type=float, default=0.0, help="ATR%下限フィルタ")
     ap.add_argument("--trend-ma", type=int, default=0,
                     help="上位足トレンド整合フィルタ: NバーMAに対しBUY=close>MA&MA上昇/SELL=close<MA&MA下降 のみ(0=無効)")
+    ap.add_argument("--market-filter", default="",
+                    help="ダウ理論・指数確認: 指定銘柄(例SPY)が上昇トレンドの時のみBUY/下降時のみSELL許可(同data-dir内のファイル)")
+    ap.add_argument("--market-ma", type=int, default=100, help="指数確認に使うMA期間")
     ap.add_argument("--entry-hour-from", type=int, default=-1,
                     help="エントリーを許可する時刻下限(データのタイムスタンプ時。-1=無効)")
     ap.add_argument("--entry-hour-to", type=int, default=-1,
@@ -191,6 +194,19 @@ def main() -> int:
     files = sorted(data_dir.glob("*.csv"))
     if args.only:
         files = [f for f in files if f.stem.split("_")[0] == args.only.upper()]
+
+    market_reg = {}
+    if args.market_filter:
+        mf = sorted(data_dir.glob(f"{args.market_filter.upper()}_*.csv"))
+        if mf:
+            mb = _load_bars(mf[0])
+            mc = [b["close"] for b in mb]
+            mn = args.market_ma
+            for k in range(mn + 1, len(mb)):
+                ma_now = sum(mc[k - mn:k]) / mn
+                ma_prev = sum(mc[k - mn - 1:k - 1]) / mn
+                px = mc[k]
+                market_reg[mb[k]["time"][:10]] = 1 if (px > ma_now and ma_now > ma_prev) else (-1 if (px < ma_now and ma_now < ma_prev) else 0)
     if not files:
         print(f"[bt] データ無し: {data_dir} (先に ibkr_fetch_history.py を実行)")
         return 1
@@ -232,6 +248,12 @@ def main() -> int:
             if sig not in ("BUY", "SELL"):
                 i += 1
                 continue
+            # ダウ理論・指数確認フィルタ(第4原則): 指数が同方向の時のみ許可
+            if args.market_filter and sym != args.market_filter.upper():
+                reg = market_reg.get(bars[i]["time"][:10], 0)
+                if (sig == "BUY" and reg <= 0) or (sig == "SELL" and reg >= 0):
+                    i += 1
+                    continue
             # 上位足トレンド整合フィルタ(P2 regime候補): 長期MA方向に逆らうシグナルを除外
             if args.trend_ma > 0:
                 closes = [b["close"] for b in window]
