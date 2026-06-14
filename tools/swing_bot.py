@@ -6,7 +6,7 @@
   SWING-US : QQQ,SPY日足  entry=ドンチャン55日 / exit=20日逆側トレーリング + 初期SL=ATR14×2
 
 1日1回(systemd timer 09:15 JST)実行・常駐しない。実弾コードパスなし(PAPERのみ)。
-データ: BTC=Binance public klines / US=IB Gateway(ダウン時はスキップ+ntfy警告)。
+データ: crypto=Binance public klines / US+JP=yfinance(認証/Gateway不要)。13市場(crypto2+US7+JP4)。
 状態=swing_state.json / 設定=SWING_CONTROL.csv / ログ=../logs/swing_trade_log.csv / 通知=ntfy(high)。
 """
 from __future__ import annotations
@@ -34,13 +34,19 @@ MARKETS = [
     {"key": "BTC", "symbol": "BTCUSDT", "source": "binance", "entry_n": 20, "exit_n": 10},
     {"key": "ETH", "symbol": "ETHUSDT", "source": "binance", "entry_n": 20, "exit_n": 10},
     # US(55/20): QQQ/SPY=検証8 / GLD,MSFT,NVDA,SMH=検証10 個別WFスクリーニング合格(両期間プラス)
-    {"key": "QQQ", "symbol": "QQQ", "source": "ibkr", "entry_n": 55, "exit_n": 20},
-    {"key": "SPY", "symbol": "SPY", "source": "ibkr", "entry_n": 55, "exit_n": 20},
-    {"key": "GLD", "symbol": "GLD", "source": "ibkr", "entry_n": 55, "exit_n": 20},
-    {"key": "MSFT", "symbol": "MSFT", "source": "ibkr", "entry_n": 55, "exit_n": 20},
-    {"key": "NVDA", "symbol": "NVDA", "source": "ibkr", "entry_n": 55, "exit_n": 20},
-    {"key": "SMH", "symbol": "SMH", "source": "ibkr", "entry_n": 55, "exit_n": 20},
-    {"key": "NFLX", "symbol": "NFLX", "source": "ibkr", "entry_n": 55, "exit_n": 20},  # 検証10追補: WF+1.51/+5.34・$100未満で唯一合格
+    {"key": "QQQ", "symbol": "QQQ", "source": "yf", "entry_n": 55, "exit_n": 20},
+    {"key": "SPY", "symbol": "SPY", "source": "yf", "entry_n": 55, "exit_n": 20},
+    {"key": "GLD", "symbol": "GLD", "source": "yf", "entry_n": 55, "exit_n": 20},
+    {"key": "MSFT", "symbol": "MSFT", "source": "yf", "entry_n": 55, "exit_n": 20},
+    {"key": "NVDA", "symbol": "NVDA", "source": "yf", "entry_n": 55, "exit_n": 20},
+    {"key": "SMH", "symbol": "SMH", "source": "yf", "entry_n": 55, "exit_n": 20},
+    {"key": "NFLX", "symbol": "NFLX", "source": "yf", "entry_n": 55, "exit_n": 20},  # 検証10追補: WF+1.51/+5.34・$100未満で唯一合格
+    # 日本株(55/20)=検証17 個別WF合格。OLC/三菱商事は米クラスタと相関≈0の「真の分散源」(検証15天井突破)。
+    # yfinance経由・PAPER。実弾執行はkabuステーションAPI=Windows必須(別途)。
+    {"key": "TEL", "symbol": "8035.T", "source": "yf", "entry_n": 55, "exit_n": 20},        # 東エレク(半導体)
+    {"key": "ADVTEST", "symbol": "6857.T", "source": "yf", "entry_n": 55, "exit_n": 20},    # アドバンテスト(半導体)
+    {"key": "OLC", "symbol": "4661.T", "source": "yf", "entry_n": 55, "exit_n": 20},        # オリエンタルランド(国内・無相関)
+    {"key": "MITSUBISHI", "symbol": "8058.T", "source": "yf", "entry_n": 55, "exit_n": 20}, # 三菱商事(商社・無相関)
 ]
 ATR_N = 14
 SL_ATR_MULT = 2.0
@@ -52,6 +58,8 @@ CLUSTER = {
     "BTC": "CRYPTO", "ETH": "CRYPTO",
     "QQQ": "TECH", "SPY": "TECH", "MSFT": "TECH", "NVDA": "TECH", "SMH": "TECH", "NFLX": "TECH",
     "GLD": "GOLD",
+    # 日本株(検証17): 半導体2銘柄は相関0.66で同クラスタ。OLC/三菱商事は無相関→独立クラスタ=分散源
+    "TEL": "SEMI_JP", "ADVTEST": "SEMI_JP", "OLC": "JP_OLC", "MITSUBISHI": "JP_SHOSHA",
 }
 
 
@@ -140,24 +148,31 @@ def _fetch_binance_daily(symbol: str, limit: int = 120) -> List[Dict[str, float]
     return [b for b in out if b["closed"]]
 
 
-_IBKR_ADAPTER = None
-
-
-def _fetch_ibkr_daily(symbol: str) -> Optional[List[Dict[str, float]]]:
-    global _IBKR_ADAPTER
+def _fetch_yf_daily(symbol: str) -> Optional[List[Dict[str, float]]]:
+    """日足をyfinanceで取得(US/JP両対応・認証不要・Gateway不要)。当日(未完了)バーは除外。"""
     try:
-        if _IBKR_ADAPTER is None:
-            from ibkr_adapter import IBKRAdapter
-            a = IBKRAdapter(host="127.0.0.1", port=7496, client_id=81,
-                            timeout_sec=30.0, readonly=True, market_data_type="delayed")
-            if not a.connect():
-                return None
-            _IBKR_ADAPTER = a
-        bars = _IBKR_ADAPTER.get_historical_bars(symbol, bar_size="1 day", duration="6 M")
-        return [{"time": str(b["time"])[:10], "open": b["open"], "high": b["high"],
-                 "low": b["low"], "close": b["close"]} for b in bars]
+        import yfinance as yf
+        df = yf.download(symbol, period="1y", auto_adjust=True, progress=False)
+        if df is None or len(df) < ATR_N + 5:
+            return None
+        try:
+            df.columns = df.columns.get_level_values(0)
+        except Exception:
+            pass
+        today = _now_jst().strftime("%Y-%m-%d")
+        out = []
+        for idx, r in df.iterrows():
+            d = str(idx)[:10]
+            if d >= today:   # 未完了の当日バーを除外(JST 9-15時は当日バーが形成中)
+                continue
+            try:
+                out.append({"time": d, "open": float(r["Open"]), "high": float(r["High"]),
+                            "low": float(r["Low"]), "close": float(r["Close"])})
+            except Exception:
+                continue
+        return out
     except Exception as e:
-        print(f"[swing] IBKR fetch error {symbol}: {type(e).__name__}: {e}")
+        print(f"[swing] JP fetch error {symbol}: {type(e).__name__}: {e}")
         return None
 
 
@@ -280,11 +295,10 @@ def main() -> int:
         try:
             if m["source"] == "binance":
                 bars = _fetch_binance_daily(m["symbol"])
-            else:
-                bars = _fetch_ibkr_daily(m["symbol"])
+            else:  # yf = yfinance(US/JP・認証/Gateway不要)
+                bars = _fetch_yf_daily(m["symbol"])
                 if bars is None:
-                    _send_ntfy(f"[SWING] WARN {m['key']} データ取得不可",
-                               "IB Gateway未接続のためUS判定をスキップしました(本日分)")
+                    print(f"[swing] {m['key']}: yfinance取得失敗 skip(本日分)")  # 取得失敗は通知せずログのみ(スパム防止)
                     continue
             if not bars:
                 print(f"[swing] {m['key']}: bars空 skip")
@@ -294,11 +308,6 @@ def main() -> int:
             print(f"[swing] ERROR {m['key']}: {type(e).__name__}: {e}")
             _send_ntfy(f"[SWING] ERROR {m['key']}", f"{type(e).__name__}: {e}")
     _save_state(state)
-    try:
-        if _IBKR_ADAPTER is not None:
-            _IBKR_ADAPTER.disconnect()
-    except Exception:
-        pass
     print("[swing] done")
     return 0
 

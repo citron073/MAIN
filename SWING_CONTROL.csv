@@ -5,3 +5,7 @@ swing_equity_qqq,10000
 swing_equity_spy,10000
 swing_max_positions,4
 swing_max_per_cluster,2
+swing_equity_tel,1500000
+swing_equity_advtest,1500000
+swing_equity_olc,1500000
+swing_equity_mitsubishi,1500000

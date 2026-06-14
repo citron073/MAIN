@@ -35,6 +35,7 @@ JST = timezone(timedelta(hours=9))
 BT_EXPECTED = {
     "BTC": 1.73, "ETH": 0.36, "QQQ": 0.45, "SPY": 0.45,
     "GLD": 0.55, "MSFT": 0.62, "NVDA": 7.65, "SMH": 0.73, "NFLX": 1.51,
+    "TEL": 3.0, "ADVTEST": 2.0, "OLC": 1.5, "MITSUBISHI": 1.5,  # 日本株(検証17)
 }
 BT_MAX_STREAK = 12   # 検証9/10で観測された最大連敗の上限(US55/20で12)
 PORTFOLIO_FLOOR = 0.5  # ポートフォリオ平均ネット期待値の合格下限(%/trade・保守)
