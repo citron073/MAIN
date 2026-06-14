@@ -4,3 +4,4 @@ swing_equity_btc,10000
 swing_equity_qqq,10000
 swing_equity_spy,10000
 swing_max_positions,4
+swing_max_per_cluster,2

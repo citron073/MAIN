@@ -45,6 +45,15 @@ MARKETS = [
 ATR_N = 14
 SL_ATR_MULT = 2.0
 
+# 相関クラスタ(2026-06-14 相関監査: N_eff≈2.2・テック群平均相関0.64・BTC-ETH 0.79)。
+# 「9市場」は実質テックβ/cryptoβ/金 の3クラスタ。同クラスタの積み増しは相関リスクの集中＝
+# 1トレード1%が実効N%に膨らむ穴。swing_max_per_cluster で同時保有を制限する。
+CLUSTER = {
+    "BTC": "CRYPTO", "ETH": "CRYPTO",
+    "QQQ": "TECH", "SPY": "TECH", "MSFT": "TECH", "NVDA": "TECH", "SMH": "TECH", "NFLX": "TECH",
+    "GLD": "GOLD",
+}
+
 
 def _now_jst() -> datetime:
     return datetime.now(JST)
@@ -228,6 +237,18 @@ def _process_market(m: Dict[str, Any], bars: List[Dict[str, float]], state: Dict
                      "side": sig, "event": "SKIP_MAX_POS", "price": round(c, 2),
                      "size": 0, "sl": 0, "note": note})
         _send_ntfy(f"[SWING] SKIP {key} {sig}", f"{key} {sig} シグナルあり、ただし同時ポジ上限{max_pos}で見送り")
+        return
+    # 相関クラスタ上限(相関集中=実効リスク膨張の穴を塞ぐ / 相関監査2026-06-14)
+    max_cluster = int(float(ctrl.get("swing_max_per_cluster", "2")))
+    cl = CLUSTER.get(key, key)
+    open_in_cluster = sum(1 for mk in state["positions"] if CLUSTER.get(mk, mk) == cl)
+    if open_in_cluster >= max_cluster:
+        note = f"cluster={cl} 上限{max_cluster}到達(相関集中回避・既存{open_in_cluster}) sig={sig} close={c:.2f}"
+        print(f"[swing] {key}: {note}")
+        _append_log({"time": _now_jst().strftime("%Y-%m-%d %H:%M:%S"), "market": key,
+                     "side": sig, "event": "SKIP_CLUSTER_LIMIT", "price": round(c, 2),
+                     "size": 0, "sl": 0, "note": note})
+        _send_ntfy(f"[SWING] SKIP {key} {sig}", f"{key} {sig} シグナルあり、ただし{cl}クラスタ上限{max_cluster}で見送り(相関集中回避)")
         return
     atr = _atr(bars)
     if not atr:
