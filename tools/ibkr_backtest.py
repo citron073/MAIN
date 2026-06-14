@@ -187,6 +187,8 @@ def main() -> int:
                     help="トレーリング出口(タートル式): 直近Nバー逆側ブレイクで決済。>0でB案レグのTPを廃止しトレーリング+初期ATR-SLに置換")
     ap.add_argument("--cost-rt-pct", type=float, default=0.0,
                     help="往復コスト%%(スプレッド+手数料+スリッページ合算)。全トレードのretから控除しネット成績を出す")
+    ap.add_argument("--entry-lag", action="store_true",
+                    help="約定遅延: シグナル足の翌足始値で約定(引け後に判定するbotの実態)。オーバーナイトギャップの実約定ペナルティを反映")
     ap.add_argument("--verbose", action="store_true")
     args = ap.parse_args()
 
@@ -269,7 +271,8 @@ def main() -> int:
                     i += 1
                     continue
             atr = ib._compute_atr(window, 14)
-            entry = bars[i]["close"]
+            # 約定価格: 通常=シグナル足close / --entry-lag=翌足open(引け後判定botの実態・ギャップ反映)
+            entry = bars[i + 1]["open"] if (args.entry_lag and i + 1 < len(bars)) else bars[i]["close"]
             if not atr or entry <= 0:
                 i += 1
                 continue
